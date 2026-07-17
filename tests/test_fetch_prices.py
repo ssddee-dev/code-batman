@@ -14,17 +14,20 @@ from jobs import fetch_prices
 
 
 class FetchPricesTests(unittest.TestCase):
+    @staticmethod
+    def payload() -> dict[str, dict[str, float]]:
+        return {
+            "bitcoin": {"usd": 61_234.5},
+            "ethereum": {"usd": 3_456.7},
+        }
+
     def test_append_prices_writes_expected_schema_and_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "prices.csv"
-            payload = {
-                "bitcoin": {"usd": 61_234.5},
-                "ethereum": {"usd": 3_456.7},
-            }
 
             with patch.object(fetch_prices, "OUTPUT_PATH", output_path):
                 written = fetch_prices.append_prices(
-                    payload, datetime(2026, 7, 17, tzinfo=timezone.utc)
+                    self.payload(), datetime(2026, 7, 17, tzinfo=timezone.utc)
                 )
 
             with output_path.open(newline="", encoding="utf-8") as output:
@@ -35,6 +38,22 @@ class FetchPricesTests(unittest.TestCase):
                 tuple(rows[0].keys()), ("timestamp", "symbol", "price_usd")
             )
             self.assertEqual([row["symbol"] for row in rows], ["BTC", "ETH"])
+
+    def test_append_prices_writes_header_to_empty_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "prices.csv"
+            output_path.touch()
+
+            with patch.object(fetch_prices, "OUTPUT_PATH", output_path):
+                fetch_prices.append_prices(
+                    self.payload(), datetime(2026, 7, 17, tzinfo=timezone.utc)
+                )
+
+            with output_path.open(newline="", encoding="utf-8") as output:
+                rows = list(csv.reader(output))
+
+            self.assertEqual(rows[0], list(fetch_prices.CSV_SCHEMA))
+            self.assertEqual(len(rows), 3)
 
     def test_append_prices_rejects_missing_observation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
