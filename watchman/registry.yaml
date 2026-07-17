@@ -1,0 +1,14 @@
+jobs:
+  fetch_prices:
+    output_pattern: data/prices.csv
+    min_rows: 2
+    min_size_bytes: 50
+    schema:
+      - timestamp
+      - symbol
+      - price_usd
+    expected_frequency_seconds: 3600
+  backup_db:
+    output_pattern: backups/demo_db_*.tar.gz
+    min_size_bytes: 100
+    expected_frequency_seconds: 86400
