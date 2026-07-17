@@ -11,3 +11,12 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
+
+## Run the detection demo
+
+Run both demo jobs, inspect their latest artifacts, append the sourced evidence
+to `watchman/history.jsonl`, and print the evidence as formatted JSON:
+
+```sh
+./run_demo.sh
+```
