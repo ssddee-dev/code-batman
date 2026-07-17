@@ -12,6 +12,7 @@ This log records what was delegated to Codex, what the human decided, and what w
 - 2026-07-16 | human | Registered for OpenAI Build Week, installed Codex CLI, warm-up session | First impressions vs. other coding agents noted for README
 - 2026-07-17 | human | Repo created (`code-batman`), architecture fixed: deterministic detection layer + LLM investigation layer + Telegram escalation; scope locked to 2 job types | Scope guard written into AGENTS.md before first line of code
 - 2026-07-17 | codex | (pending) Scaffold project: 2 demo jobs, inspector, registry.yaml, history.jsonl | Day 1 target: detection layer complete
+- 2026-07-17 | codex | Added the CoinGecko BTC/ETH CSV demo job and project-local Python setup | Job logs artifact path, appended rows, and byte size; response validation is covered without live API calls
 
 <!-- Append new entries above this line's section as work progresses.
      Keep entries honest: if Codex got something wrong and the human corrected it, log that too —
