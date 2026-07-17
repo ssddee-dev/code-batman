@@ -161,6 +161,7 @@ venv.bak/
 data/
 backups/
 dossiers/
+quarantine/
 
 # Spyder project settings
 .spyderproject

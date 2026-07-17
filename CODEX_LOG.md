@@ -23,3 +23,4 @@ This log records what was delegated to Codex, what the human decided, and what w
 - 2026-07-17 | codex | Added the GPT-5.6 evidence investigator with strict dossier and citation validation | Flagged jobs make one initial API call, retry once only on invalid output, and preserve both failed raw outputs explicitly
 - 2026-07-17 | codex | Integrated flagged-only investigation into the end-to-end demo | Jobs run first, inspection persists quietly, validated dossiers are saved, and only a short dossier summary is printed
 - 2026-07-17 | codex | Added morning-scope Telegram dossier escalation | Text-only summaries include raw flag comparisons, top suspected area, numbered decision options with risks, and explicit bounded truncation; buttons remain deferred
+- 2026-07-17 | codex | Added the bounded approve-to-execute executor | Exactly two actions are dispatchable; quarantine moves evidence without deletion, reruns report raw exit status, and missing outputs stay explicit
