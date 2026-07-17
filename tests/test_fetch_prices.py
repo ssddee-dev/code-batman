@@ -55,6 +55,22 @@ class FetchPricesTests(unittest.TestCase):
             self.assertEqual(rows[0], list(fetch_prices.CSV_SCHEMA))
             self.assertEqual(len(rows), 3)
 
+    def test_append_prices_does_not_rewrite_nonempty_malformed_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "prices.csv"
+            output_path.write_text("\n", encoding="utf-8")
+
+            with patch.object(fetch_prices, "OUTPUT_PATH", output_path):
+                fetch_prices.append_prices(
+                    self.payload(), datetime(2026, 7, 17, tzinfo=timezone.utc)
+                )
+
+            with output_path.open(newline="", encoding="utf-8") as output:
+                rows = list(csv.reader(output))
+
+            self.assertEqual(rows[0], [])
+            self.assertEqual([row[1] for row in rows[1:]], ["BTC", "ETH"])
+
     def test_append_prices_rejects_missing_observation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with patch.object(

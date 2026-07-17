@@ -17,6 +17,7 @@ This log records what was delegated to Codex, what the human decided, and what w
 - 2026-07-17 | codex | Added the two-job registry and deterministic artifact inspector | Every flag carries raw values and source pointers; unavailable metrics and history parse issues remain explicit
 - 2026-07-17 | codex | Added the end-to-end demo runner and completed detection-layer scaffolding | Runner executes exactly the two scoped jobs, persists inspections, and prints formatted evidence JSON
 - 2026-07-17 | codex | Added explicit regression coverage for CSV header creation on an existing empty prices file | Missing-file and empty-file header behavior are now both verified
+- 2026-07-17 | human | Failure injection exposed a persistent non-empty CSV schema mismatch and it was adopted as the demo scenario | Successful job runs can append data without restoring a lost header; the inspector keeps emitting sourced `schema_mismatch` evidence
 
 <!-- Append new entries above this line's section as work progresses.
      Keep entries honest: if Codex got something wrong and the human corrected it, log that too —

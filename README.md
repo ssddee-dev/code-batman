@@ -20,3 +20,15 @@ to `watchman/history.jsonl`, and print the evidence as formatted JSON:
 ```sh
 ./run_demo.sh
 ```
+
+## Demo scenario: persistent CSV schema mismatch
+
+The detection demo intentionally preserves a non-empty malformed price artifact.
+Replace `data/prices.csv` with a single blank row, then run `./run_demo.sh`
+repeatedly. The price job still exits successfully and appends BTC and ETH rows,
+but it does not rewrite a non-empty artifact. The deterministic inspector reports
+the observed empty schema as `schema_mismatch` on each inspection, with the CSV
+path and registry path attached as evidence.
+
+This differs from a genuinely missing or zero-byte CSV: in those cases the price
+job writes the declared header before appending observations.
