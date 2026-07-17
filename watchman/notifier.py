@@ -1,4 +1,4 @@
-"""Send compact, text-only evidence dossier summaries through Telegram."""
+"""Send compact evidence dossiers with bounded Telegram approval buttons."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ HISTORY_PATH = ROOT / "watchman" / "history.jsonl"
 TELEGRAM_MESSAGE_LIMIT = 4096
 TRUNCATION_MARKER = "(truncated, see full dossier)"
 SCOPED_JOBS = ("fetch_prices", "backup_db")
+BUTTON_ACTION_IDS = {"quarantine_and_rerun", "rerun_only", "none"}
+CALLBACK_DATA_LIMIT_BYTES = 64
 
 Evidence = dict[str, Any]
 
@@ -223,6 +225,39 @@ def format_dossier_message(
     )
 
 
+def build_inline_keyboard(dossier_path: Path | str) -> Evidence:
+    """Return one byte-bounded Telegram button for each dossier option."""
+    path = Path(dossier_path)
+    try:
+        dossier = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"unable to read dossier {path}: {error}") from error
+    decision = (
+        dossier.get("human_decision_needed")
+        if isinstance(dossier, dict)
+        else None
+    )
+    options = decision.get("options") if isinstance(decision, dict) else None
+    if not isinstance(options, list) or not options:
+        raise ValueError(f"dossier has no decision options: {path}")
+
+    buttons: list[list[Evidence]] = []
+    for option in options:
+        action_id = option.get("action_id") if isinstance(option, dict) else None
+        if action_id not in BUTTON_ACTION_IDS:
+            raise ValueError(f"unsupported dossier action_id: {action_id}")
+        callback_data = f"{action_id}:{path.name}"
+        if len(callback_data.encode("utf-8")) > CALLBACK_DATA_LIMIT_BYTES:
+            raise ValueError(
+                "callback_data exceeds Telegram's 64-byte limit: "
+                f"{action_id}:{path.name}"
+            )
+        buttons.append(
+            [{"text": action_id, "callback_data": callback_data}]
+        )
+    return {"inline_keyboard": buttons}
+
+
 def send_dossier(
     dossier_path: Path | str,
     *,
@@ -250,9 +285,14 @@ def send_dossier(
         dossier_path,
         history_path=history_path or root / "watchman" / "history.jsonl",
     )
+    keyboard = build_inline_keyboard(dossier_path)
     response = requests.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
-        json={"chat_id": chat_id, "text": message},
+        json={
+            "chat_id": chat_id,
+            "text": message,
+            "reply_markup": keyboard,
+        },
         timeout=20,
     )
     response.raise_for_status()
