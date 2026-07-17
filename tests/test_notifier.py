@@ -36,6 +36,11 @@ def dossier() -> dict:
             "question": "Which bounded action, if any, should be approved?",
             "options": [
                 {
+                    "action_id": "quarantine_and_rerun",
+                    "description": "Move the current output aside and rerun.",
+                    "risk_note": "The current output leaves its original path.",
+                },
+                {
                     "action_id": "rerun_only",
                     "description": "Run the price job once more.",
                     "risk_note": "The header may remain absent.",
@@ -87,9 +92,10 @@ class NotifierTests(unittest.TestCase):
         self.assertIn('reference=["timestamp", "symbol", "price_usd"]', message)
         self.assertIn("CSV header handling (plausible)", message)
         self.assertIn("Which bounded action", message)
-        self.assertIn("1. [rerun_only]", message)
+        self.assertIn("1. [quarantine_and_rerun]", message)
         self.assertIn("Risk: The header may remain absent.", message)
-        self.assertIn("2. [none]", message)
+        self.assertIn("2. [rerun_only]", message)
+        self.assertIn("3. [none]", message)
         self.assertLessEqual(len(message), notifier.TELEGRAM_MESSAGE_LIMIT)
 
     def test_long_evidence_is_explicitly_truncated_within_limit(self) -> None:
@@ -143,11 +149,11 @@ class NotifierTests(unittest.TestCase):
         buttons = request_json["reply_markup"]["inline_keyboard"]
         self.assertEqual(
             [row[0]["text"] for row in buttons],
-            ["rerun_only", "none"],
+            ["quarantine_and_rerun", "rerun_only", "none"],
         )
         self.assertEqual(
             buttons[0][0]["callback_data"],
-            f"rerun_only:{dossier_path.name}",
+            f"quarantine_and_rerun:{dossier_path.name}",
         )
         self.assertNotIn(str(dossier_path.parent), buttons[0][0]["callback_data"])
         self.assertTrue(

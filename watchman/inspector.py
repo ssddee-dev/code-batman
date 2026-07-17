@@ -346,6 +346,36 @@ def inspect_all(
     return results
 
 
+def inspect_one(
+    job_name: str,
+    *,
+    root: Path = ROOT,
+    registry_path: Path = REGISTRY_PATH,
+    history_path: Path = HISTORY_PATH,
+    inspected_at: datetime | None = None,
+) -> Evidence:
+    """Inspect one scoped job and append its sourced result to history."""
+    registry = load_registry(registry_path)
+    expectations = registry.get(job_name)
+    if not isinstance(expectations, dict):
+        raise ValueError(f"job is not declared in registry: {job_name}")
+    history, history_issues = load_history(history_path)
+    result = inspect_job(
+        job_name,
+        expectations,
+        root=root,
+        registry_path=registry_path,
+        history_path=history_path,
+        prior=latest_prior_for_job(job_name, history),
+        inspected_at=inspected_at,
+        history_issues=history_issues,
+    )
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    with history_path.open("a", encoding="utf-8") as history_file:
+        history_file.write(json.dumps(result, sort_keys=True) + "\n")
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     """Persist structured evidence and print it unless quiet mode is requested."""
     parser = argparse.ArgumentParser(description=__doc__)

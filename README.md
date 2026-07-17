@@ -27,6 +27,18 @@ model attempts fail schema or source-citation validation, their raw outputs and
 validation errors are retained under `dossiers/failed/` and the run exits
 explicitly.
 
+Run the Telegram approval listener in a separate terminal:
+
+```sh
+source .venv/bin/activate
+python -m watchman.approver
+```
+
+It accepts callback queries only from `TELEGRAM_CHAT_ID`, acknowledges each
+dossier once, executes only `quarantine_and_rerun` or `rerun_only`, and appends
+the deterministic post-action inspection to `watchman/history.jsonl`. Stop the
+listener with Ctrl-C.
+
 ## Demo scenario: persistent CSV schema mismatch
 
 The detection demo intentionally preserves a non-empty malformed price artifact.

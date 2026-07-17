@@ -233,6 +233,49 @@ jobs:
         self.assertEqual(exit_code, 0)
         print_mock.assert_not_called()
 
+    def test_inspect_one_appends_only_requested_job(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            watchman_dir = root / "watchman"
+            watchman_dir.mkdir()
+            registry_path = watchman_dir / "registry.yaml"
+            history_path = watchman_dir / "history.jsonl"
+            registry_path.write_text(
+                """
+jobs:
+  fetch_prices:
+    output_pattern: data/prices.csv
+    min_rows: 2
+    min_size_bytes: 50
+    schema:
+      - timestamp
+      - symbol
+      - price_usd
+    expected_frequency_seconds: 60
+  backup_db:
+    output_pattern: backups/demo_db_*.tar.gz
+    min_size_bytes: 100
+    expected_frequency_seconds: 60
+""".lstrip(),
+                encoding="utf-8",
+            )
+            history_path.touch()
+
+            result = inspector.inspect_one(
+                "fetch_prices",
+                root=root,
+                registry_path=registry_path,
+                history_path=history_path,
+                inspected_at=NOW,
+            )
+            records = [
+                json.loads(line)
+                for line in history_path.read_text(encoding="utf-8").splitlines()
+            ]
+
+        self.assertEqual(result["job"], "fetch_prices")
+        self.assertEqual([record["job"] for record in records], ["fetch_prices"])
+
 
 if __name__ == "__main__":
     unittest.main()

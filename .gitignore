@@ -162,6 +162,7 @@ data/
 backups/
 dossiers/
 quarantine/
+logs/handled_dossiers.jsonl
 
 # Spyder project settings
 .spyderproject
