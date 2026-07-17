@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -112,6 +113,36 @@ class ExecutorTests(unittest.TestCase):
                 record["files_moved"]["reason"], "current_output_missing"
             )
             self.assertEqual(record["job_exit_status"]["exit_code"], 0)
+
+    def test_failed_quarantine_does_not_rerun(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output = root / "data" / "prices.csv"
+            output.parent.mkdir(parents=True)
+            output.write_text("evidence", encoding="utf-8")
+            write_job(root, "fetch_prices")
+
+            with patch(
+                "watchman.executor.shutil.move",
+                side_effect=OSError("move unavailable"),
+            ):
+                with patch("watchman.executor.subprocess.run") as run:
+                    record = executor.quarantine_and_rerun(
+                        "fetch_prices",
+                        root=root,
+                        python_executable=sys.executable,
+                        now=NOW,
+                    )
+
+            self.assertEqual(
+                record["files_moved"]["reason"], "quarantine_move_failed"
+            )
+            self.assertEqual(
+                record["job_exit_status"]["reason"],
+                "rerun_not_attempted_after_quarantine_failure",
+            )
+            run.assert_not_called()
+            self.assertTrue(output.exists())
 
     def test_dispatch_rejects_unscoped_actions_and_jobs(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported action"):

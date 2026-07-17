@@ -138,17 +138,38 @@ def quarantine_and_rerun(
         destination = quarantine_dir / (
             f"{output_path.name}.{_timestamp(action_started)}"
         )
-        shutil.move(str(output_path), str(destination))
-        moved = {
-            "status": "available",
-            "items": [
-                {
-                    "from": str(output_path),
-                    "to": str(destination),
-                    "moved_at": _utc_now().isoformat(),
-                }
-            ],
-        }
+        try:
+            shutil.move(str(output_path), str(destination))
+        except OSError as error:
+            return {
+                "action": "quarantine_and_rerun",
+                "job": job,
+                "started_at": action_started.isoformat(),
+                "completed_at": _utc_now().isoformat(),
+                "files_moved": {
+                    "status": "unavailable",
+                    "items": [],
+                    "reason": "quarantine_move_failed",
+                    "error": str(error),
+                    "source": {"path": str(output_path)},
+                    "intended_destination": {"path": str(destination)},
+                },
+                "job_exit_status": {
+                    "status": "unavailable",
+                    "reason": "rerun_not_attempted_after_quarantine_failure",
+                },
+            }
+        else:
+            moved = {
+                "status": "available",
+                "items": [
+                    {
+                        "from": str(output_path),
+                        "to": str(destination),
+                        "moved_at": _utc_now().isoformat(),
+                    }
+                ],
+            }
 
     job_status = _run_job(
         job, root=root, python_executable=python_executable
