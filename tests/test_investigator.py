@@ -7,6 +7,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -207,6 +208,31 @@ class InvestigatorTests(unittest.TestCase):
 
         self.assertTrue(any("unexpected top-level" in error for error in errors))
         self.assertTrue(any("action_id is invalid" in error for error in errors))
+
+    def test_notify_cli_sends_each_saved_dossier(self) -> None:
+        summaries = [
+            {
+                "job": "fetch_prices",
+                "dossier_path": "/tmp/fetch_prices_dossier.json",
+            }
+        ]
+        with patch.object(
+            investigator, "load_latest_inspections", return_value=[]
+        ):
+            with patch.object(
+                investigator, "investigate_flagged", return_value=summaries
+            ):
+                with patch(
+                    "watchman.notifier.send_dossier"
+                ) as send_dossier:
+                    with patch("builtins.print"):
+                        exit_code = investigator.main(["--notify"])
+
+        self.assertEqual(exit_code, 0)
+        send_dossier.assert_called_once_with(
+            Path("/tmp/fetch_prices_dossier.json")
+        )
+        self.assertTrue(summaries[0]["telegram_notified"])
 
 
 if __name__ == "__main__":

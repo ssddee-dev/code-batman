@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import copy
 import json
 from datetime import datetime, timezone
@@ -549,9 +550,22 @@ def investigate_flagged(
     return summaries
 
 
-def main() -> int:
-    """Investigate the latest flagged inspections and print short summaries."""
+def main(argv: list[str] | None = None) -> int:
+    """Investigate latest flags, optionally notify Telegram, and print summaries."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="send each saved dossier through the text-only Telegram notifier",
+    )
+    arguments = parser.parse_args(argv)
     summaries = investigate_flagged(load_latest_inspections())
+    if arguments.notify:
+        from watchman.notifier import send_dossier
+
+        for summary in summaries:
+            send_dossier(Path(summary["dossier_path"]))
+            summary["telegram_notified"] = True
     print(json.dumps({"dossiers": summaries}, indent=2, sort_keys=True))
     return 0
 

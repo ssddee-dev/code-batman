@@ -14,4 +14,4 @@ cd "${ROOT}"
 "${PYTHON}" jobs/fetch_prices.py
 "${PYTHON}" jobs/backup_db.py
 "${PYTHON}" -m watchman.inspector --quiet
-"${PYTHON}" -m watchman.investigator
+"${PYTHON}" -m watchman.investigator --notify
