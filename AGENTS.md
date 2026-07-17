@@ -21,6 +21,7 @@ Fixed scope for the challenge (deadline July 21):
 - Detection: file existence, size, row count, schema, anomaly vs. history (`history.jsonl`)
 - Investigation: hardcoded playbooks for the 2 job types only — log parsing, recent-change check, minimal reproduction
 - Escalation: Telegram, single channel
+- Approve-to-execute: exactly 2 action types (quarantine_and_rerun, rerun_only), inline-button approval via Telegram, post-execution re-inspection. No other actions.
 - **Anything else goes into `TODO.md`, not into code.** No generic job framework, no plugin system, no web dashboard, no additional job types, no config UI. If a feature idea appears mid-task, append it to TODO.md and continue.
 
 ## Conventions
