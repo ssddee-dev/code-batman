@@ -15,11 +15,17 @@ python -m pip install -r requirements.txt
 ## Run the detection demo
 
 Run both demo jobs, inspect their latest artifacts, append the sourced evidence
-to `watchman/history.jsonl`, and print the evidence as formatted JSON:
+to `watchman/history.jsonl`, investigate flagged jobs with GPT-5.6, and print a
+short dossier summary:
 
 ```sh
 ./run_demo.sh
 ```
+
+Validated dossiers are written to `dossiers/{job}_{timestamp}.json`. If both
+model attempts fail schema or source-citation validation, their raw outputs and
+validation errors are retained under `dossiers/failed/` and the run exits
+explicitly.
 
 ## Demo scenario: persistent CSV schema mismatch
 

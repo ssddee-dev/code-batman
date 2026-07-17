@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -223,6 +224,14 @@ jobs:
         self.assertEqual(
             [record["job"] for record in history_records], ["first", "second"]
         )
+
+    def test_quiet_cli_persists_without_printing(self) -> None:
+        with patch.object(inspector, "inspect_all", return_value=[{"job": "first"}]):
+            with patch("builtins.print") as print_mock:
+                exit_code = inspector.main(["--quiet"])
+
+        self.assertEqual(exit_code, 0)
+        print_mock.assert_not_called()
 
 
 if __name__ == "__main__":

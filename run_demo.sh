@@ -13,4 +13,5 @@ fi
 cd "${ROOT}"
 "${PYTHON}" jobs/fetch_prices.py
 "${PYTHON}" jobs/backup_db.py
-"${PYTHON}" watchman/inspector.py
+"${PYTHON}" -m watchman.inspector --quiet
+"${PYTHON}" -m watchman.investigator

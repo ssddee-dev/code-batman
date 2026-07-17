@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from datetime import datetime, timezone
@@ -345,9 +346,18 @@ def inspect_all(
     return results
 
 
-def main() -> int:
-    """Print the structured evidence generated and persisted by this inspection."""
-    print(json.dumps(inspect_all(), indent=2, sort_keys=True))
+def main(argv: list[str] | None = None) -> int:
+    """Persist structured evidence and print it unless quiet mode is requested."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="append inspection evidence to history without printing it",
+    )
+    arguments = parser.parse_args(argv)
+    results = inspect_all()
+    if not arguments.quiet:
+        print(json.dumps(results, indent=2, sort_keys=True))
     return 0
 
 

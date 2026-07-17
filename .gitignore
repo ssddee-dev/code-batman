@@ -160,6 +160,7 @@ venv.bak/
 # Night Watchman runtime artifacts
 data/
 backups/
+dossiers/
 
 # Spyder project settings
 .spyderproject
