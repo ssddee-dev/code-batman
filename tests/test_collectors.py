@@ -102,6 +102,11 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(
             items["registry_expectations"]["source"]["line_start"], 2
         )
+        self.assertEqual(items["history_read_issues"]["value"], [])
+        self.assertEqual(
+            items["history_read_issues"]["source"]["detail"],
+            "history_read_issues",
+        )
 
     def test_fetch_prices_labels_missing_sources_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -215,6 +215,15 @@ def _archive_count_trend(history_path: Path) -> tuple[Evidence, list[Evidence]]:
     ), issues
 
 
+def _history_issues_evidence(
+    history_path: Path, issues: list[Evidence]
+) -> Evidence:
+    return _available(
+        issues,
+        _source(history_path, detail="history_read_issues"),
+    )
+
+
 def _registry_line_range(registry_path: Path, job_name: str) -> tuple[int, int] | None:
     lines, error = _read_lines(registry_path)
     if error is not None or lines is None:
@@ -277,7 +286,9 @@ def collect_for_fetch_prices(
             "registry_expectations": _registry_expectations(
                 registry, "fetch_prices"
             ),
-            "history_read_issues": history_issues,
+            "history_read_issues": _history_issues_evidence(
+                history, history_issues
+            ),
         },
     }
 
@@ -351,6 +362,8 @@ def collect_for_backup_db(
             "latest_archive_members": archive_members,
             "archive_count_trend": trend,
             "registry_expectations": _registry_expectations(registry, "backup_db"),
-            "history_read_issues": history_issues,
+            "history_read_issues": _history_issues_evidence(
+                history, history_issues
+            ),
         },
     }
