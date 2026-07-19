@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -15,11 +16,33 @@ from watchman import executor
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
 
 
-def write_job(root: Path, job: str, exit_code: int = 0) -> None:
-    script = root / "jobs" / f"{job}.py"
+def write_job(
+    root: Path,
+    job: str,
+    output: str,
+    exit_code: int = 0,
+) -> None:
+    script = root / "examples" / f"{job}.py"
     script.parent.mkdir(parents=True, exist_ok=True)
     script.write_text(
         f"raise SystemExit({exit_code})\n",
+        encoding="utf-8",
+    )
+    registry = root / "watchman" / "registry.yaml"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "name": job,
+                        "command": [sys.executable, str(script.relative_to(root))],
+                        "output": output,
+                        "expectations": {"min_size_bytes": 1},
+                    }
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -31,12 +54,11 @@ class ExecutorTests(unittest.TestCase):
             output = root / "data" / "prices.csv"
             output.parent.mkdir(parents=True)
             output.write_text("timestamp,symbol,price_usd\n", encoding="utf-8")
-            write_job(root, "fetch_prices")
+            write_job(root, "fetch_prices", "data/prices.csv")
 
             record = executor.quarantine_and_rerun(
                 "fetch_prices",
                 root=root,
-                python_executable=sys.executable,
                 now=NOW,
             )
 
@@ -62,12 +84,11 @@ class ExecutorTests(unittest.TestCase):
             latest.write_bytes(b"latest")
             os.utime(older, (1, 1))
             os.utime(latest, (2, 2))
-            write_job(root, "backup_db")
+            write_job(root, "backup_db", "backups/demo_db_*.tar.gz")
 
             record = executor.quarantine_and_rerun(
                 "backup_db",
                 root=root,
-                python_executable=sys.executable,
                 now=NOW,
             )
 
@@ -83,12 +104,11 @@ class ExecutorTests(unittest.TestCase):
             output = root / "data" / "prices.csv"
             output.parent.mkdir(parents=True)
             output.write_text("evidence", encoding="utf-8")
-            write_job(root, "fetch_prices", exit_code=7)
+            write_job(root, "fetch_prices", "data/prices.csv", exit_code=7)
 
             record = executor.rerun_only(
                 "fetch_prices",
                 root=root,
-                python_executable=sys.executable,
                 now=NOW,
             )
 
@@ -99,12 +119,11 @@ class ExecutorTests(unittest.TestCase):
     def test_missing_output_is_explicit_and_job_still_reruns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            write_job(root, "fetch_prices")
+            write_job(root, "fetch_prices", "data/prices.csv")
 
             record = executor.quarantine_and_rerun(
                 "fetch_prices",
                 root=root,
-                python_executable=sys.executable,
                 now=NOW,
             )
 
@@ -120,7 +139,7 @@ class ExecutorTests(unittest.TestCase):
             output = root / "data" / "prices.csv"
             output.parent.mkdir(parents=True)
             output.write_text("evidence", encoding="utf-8")
-            write_job(root, "fetch_prices")
+            write_job(root, "fetch_prices", "data/prices.csv")
 
             with patch(
                 "watchman.executor.shutil.move",
@@ -130,7 +149,6 @@ class ExecutorTests(unittest.TestCase):
                     record = executor.quarantine_and_rerun(
                         "fetch_prices",
                         root=root,
-                        python_executable=sys.executable,
                         now=NOW,
                     )
 
@@ -144,11 +162,43 @@ class ExecutorTests(unittest.TestCase):
             run.assert_not_called()
             self.assertTrue(output.exists())
 
-    def test_dispatch_rejects_unscoped_actions_and_jobs(self) -> None:
+    def test_synthetic_third_job_uses_its_declared_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_job(
+                root,
+                "synthetic_third_job",
+                "artifacts/third.jsonl",
+                exit_code=3,
+            )
+
+            record = executor.rerun_only(
+                "synthetic_third_job",
+                root=root,
+                now=NOW,
+            )
+
+        self.assertEqual(record["job"], "synthetic_third_job")
+        self.assertEqual(record["job_exit_status"]["exit_code"], 3)
+        self.assertEqual(
+            record["job_exit_status"]["command"][-1],
+            "examples/synthetic_third_job.py",
+        )
+
+    def test_dispatch_rejects_unscoped_actions_and_unregistered_jobs(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported action"):
             executor.execute("restart", "fetch_prices")
-        with self.assertRaisesRegex(ValueError, "unsupported job"):
-            executor.execute("rerun_only", "unregistered_job")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_job(root, "registered_job", "data/output.txt")
+            with self.assertRaisesRegex(
+                ValueError, "job is not declared in registry"
+            ):
+                executor.execute(
+                    "rerun_only",
+                    "unregistered_job",
+                    root=root,
+                )
 
 
 if __name__ == "__main__":

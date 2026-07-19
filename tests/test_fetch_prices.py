@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jobs import fetch_prices
+from examples import fetch_prices
 
 
 class FetchPricesTests(unittest.TestCase):

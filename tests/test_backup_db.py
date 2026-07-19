@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jobs import backup_db
+from examples import backup_db
 
 
 class BackupDbTests(unittest.TestCase):

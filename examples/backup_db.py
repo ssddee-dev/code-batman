@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the demo SQLite database when needed and archive it."""
+"""Example job that creates a demo SQLite database and archives it."""
 
 from __future__ import annotations
 

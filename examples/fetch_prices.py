@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch BTC and ETH prices and append the observations to a CSV artifact."""
+"""Example job that appends BTC and ETH price observations to a CSV artifact."""
 
 from __future__ import annotations
 
