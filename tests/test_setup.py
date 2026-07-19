@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import os
 import stat
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock
+
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -116,6 +117,124 @@ class SetupCredentialTests(unittest.TestCase):
 
         with self.assertRaisesRegex(setup.SetupError, "did not confirm"):
             setup.send_telegram_test("token", "chat", session=session)
+
+
+class SetupRegistryTests(unittest.TestCase):
+    def test_csv_job_prompt_collects_optional_expectations(self) -> None:
+        answers = iter(
+            [
+                "name that is too long",
+                "daily_report",
+                "/opt/reporting/export.sh --daily",
+                "artifacts/report_*.csv",
+                "logs/report.log",
+                "100",
+                "86400",
+                "2",
+                "timestamp, account_id, total",
+            ]
+        )
+        output = Mock()
+
+        declaration = setup.prompt_job_declaration(
+            input_function=lambda prompt: next(answers),
+            output=output,
+        )
+
+        self.assertEqual(declaration["name"], "daily_report")
+        self.assertEqual(declaration["expectations"]["min_rows"], 2)
+        self.assertEqual(
+            declaration["expectations"]["schema"],
+            ["timestamp", "account_id", "total"],
+        )
+        self.assertTrue(
+            any(
+                "Telegram callback limit" in call.args[0]
+                for call in output.call_args_list
+            )
+        )
+
+    def test_append_preserves_existing_registry_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = Path(temp_dir) / "watchman" / "registry.yaml"
+            registry.parent.mkdir()
+            original = (
+                "jobs:\n"
+                "  - name: existing\n"
+                "    command: python existing.py\n"
+                "    output: existing.txt\n"
+                "    expectations:\n"
+                "      min_size_bytes: 1\n"
+                "      expected_frequency_seconds: 60\n"
+            )
+            registry.write_text(original, encoding="utf-8")
+            declaration = {
+                "name": "new_job",
+                "command": "python new.py",
+                "output": "new.jsonl",
+                "expectations": {
+                    "min_size_bytes": 2,
+                    "min_rows": 1,
+                    "expected_frequency_seconds": 120,
+                },
+            }
+
+            setup.append_job_declaration(
+                declaration,
+                registry_path=registry,
+            )
+            resulting_text = registry.read_text(encoding="utf-8")
+            payload = yaml.safe_load(resulting_text)
+
+        self.assertTrue(resulting_text.startswith(original))
+        self.assertEqual(
+            [job["name"] for job in payload["jobs"]],
+            ["existing", "new_job"],
+        )
+
+    def test_append_rejects_duplicate_without_modifying_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry = Path(temp_dir) / "registry.yaml"
+            original = (
+                "jobs:\n"
+                "  - name: duplicate\n"
+                "    command: python first.py\n"
+                "    output: first.txt\n"
+                "    expectations:\n"
+                "      min_size_bytes: 1\n"
+                "      expected_frequency_seconds: 60\n"
+            )
+            registry.write_text(original, encoding="utf-8")
+            declaration = {
+                "name": "duplicate",
+                "command": "python second.py",
+                "output": "second.txt",
+                "expectations": {
+                    "min_size_bytes": 1,
+                    "expected_frequency_seconds": 60,
+                },
+            }
+
+            with self.assertRaisesRegex(setup.SetupError, "duplicate job"):
+                setup.append_job_declaration(
+                    declaration,
+                    registry_path=registry,
+                )
+
+            self.assertEqual(registry.read_text(encoding="utf-8"), original)
+
+    def test_next_steps_end_with_approver_and_cron_commands(self) -> None:
+        output = Mock()
+
+        setup.print_next_steps(
+            root=Path("/srv/night watchman"),
+            output=output,
+        )
+
+        lines = [call.args[0] for call in output.call_args_list]
+        self.assertIn("watchman.approver", lines[-2])
+        self.assertIn("watchman.inspector --quiet", lines[-1])
+        self.assertIn("watchman.investigator --notify", lines[-1])
 
 
 if __name__ == "__main__":

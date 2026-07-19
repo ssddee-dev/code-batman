@@ -44,12 +44,21 @@ def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
     """Load and validate generic job declarations keyed by declared name."""
     with registry_path.open(encoding="utf-8") as registry_file:
         payload = yaml.safe_load(registry_file)
+    return validate_registry_payload(payload, source=str(registry_path))
+
+
+def validate_registry_payload(
+    payload: Any,
+    *,
+    source: str = "registry payload",
+) -> dict[str, Evidence]:
+    """Validate a registry payload and return declarations keyed by job name."""
     if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
-        raise ValueError(f"registry must contain a jobs list: {registry_path}")
+        raise ValueError(f"registry must contain a jobs list: {source}")
 
     registry: dict[str, Evidence] = {}
     for index, declaration in enumerate(payload["jobs"]):
-        location = f"{registry_path}: jobs[{index}]"
+        location = f"{source}: jobs[{index}]"
         if not isinstance(declaration, dict):
             raise ValueError(f"job declaration must be a mapping: {location}")
         name = declaration.get("name")

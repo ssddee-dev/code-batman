@@ -5,13 +5,19 @@ from __future__ import annotations
 import getpass
 import importlib.util
 import os
+import re
+import shlex
 import stat
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import requests
+import yaml
 from dotenv import dotenv_values
+
+from watchman.inspector import validate_registry_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_NAMES = (
@@ -25,6 +31,7 @@ DEPENDENCIES = {
     "openai": "openai",
     "python-dotenv": "dotenv",
 }
+JOB_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,14}$")
 
 InputFunction = Callable[[str], str]
 OutputFunction = Callable[[str], None]
@@ -143,7 +150,9 @@ def auto_detect_telegram_chat_id(
         payload = response.json()
     except (requests.RequestException, ValueError) as error:
         raise SetupError("Telegram chat auto-detection request failed.") from error
-    updates = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict):
+        raise SetupError("Telegram returned an unavailable getUpdates payload.")
+    updates = payload.get("result")
     if payload.get("ok") is not True or not isinstance(updates, list):
         raise SetupError("Telegram returned an unavailable getUpdates payload.")
     for update in reversed(updates):
@@ -244,3 +253,254 @@ def configure_credentials(
     )
     output("Telegram test message sent.")
     return configured
+
+
+def _prompt_text(
+    prompt: str,
+    *,
+    input_function: InputFunction,
+    output: OutputFunction,
+) -> str:
+    while True:
+        value = input_function(prompt).strip()
+        if value:
+            return value
+        output("A value is required.")
+
+
+def _prompt_integer(
+    prompt: str,
+    *,
+    input_function: InputFunction,
+    output: OutputFunction,
+    default: int,
+    minimum: int,
+) -> int:
+    while True:
+        raw = input_function(f"{prompt} [{default}]: ").strip()
+        if not raw:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            output("Enter a whole number.")
+            continue
+        if value < minimum:
+            output(f"Enter a value of at least {minimum}.")
+            continue
+        return value
+
+
+def _prompt_optional_integer(
+    prompt: str,
+    *,
+    input_function: InputFunction,
+    output: OutputFunction,
+) -> int | None:
+    while True:
+        raw = input_function(prompt).strip()
+        if not raw:
+            return None
+        try:
+            value = int(raw)
+        except ValueError:
+            output("Enter a non-negative whole number or leave it blank.")
+            continue
+        if value < 0:
+            output("Enter a non-negative whole number or leave it blank.")
+            continue
+        return value
+
+
+def prompt_job_declaration(
+    *,
+    input_function: InputFunction = input,
+    output: OutputFunction = print,
+) -> dict[str, Any]:
+    """Prompt for one generic file-artifact job declaration."""
+    output("Register your first file-artifact job.")
+    while True:
+        name = _prompt_text(
+            "Job name: ",
+            input_function=input_function,
+            output=output,
+        )
+        if JOB_NAME_PATTERN.fullmatch(name):
+            break
+        output(
+            "Use 1-15 letters, numbers, underscores, or hyphens "
+            "(Telegram callback limit)."
+        )
+    command = _prompt_text(
+        "Command used to run the job: ",
+        input_function=input_function,
+        output=output,
+    )
+    output_pattern = _prompt_text(
+        "Output path or glob: ",
+        input_function=input_function,
+        output=output,
+    )
+    log_path = input_function("Log path (optional): ").strip()
+    expectations: dict[str, Any] = {
+        "min_size_bytes": _prompt_integer(
+            "Minimum size in bytes",
+            input_function=input_function,
+            output=output,
+            default=1,
+            minimum=0,
+        ),
+        "expected_frequency_seconds": _prompt_integer(
+            "Expected frequency in seconds",
+            input_function=input_function,
+            output=output,
+            default=3600,
+            minimum=1,
+        ),
+    }
+
+    suffix = Path(output_pattern).suffix.lower()
+    if suffix in {".csv", ".jsonl", ".ndjson"}:
+        minimum_rows = _prompt_optional_integer(
+            "Minimum rows (optional): ",
+            input_function=input_function,
+            output=output,
+        )
+        if minimum_rows is not None:
+            expectations["min_rows"] = minimum_rows
+    if suffix == ".csv":
+        raw_schema = input_function(
+            "CSV header columns, comma-separated (optional): "
+        ).strip()
+        if raw_schema:
+            schema = [
+                column.strip()
+                for column in raw_schema.split(",")
+                if column.strip()
+            ]
+            if not schema:
+                raise SetupError("CSV schema did not contain any column names.")
+            expectations["schema"] = schema
+
+    declaration: dict[str, Any] = {
+        "name": name,
+        "command": command,
+        "output": output_pattern,
+    }
+    if log_path:
+        declaration["log_path"] = log_path
+    declaration["expectations"] = expectations
+    validate_registry_payload(
+        {"jobs": [declaration]},
+        source="setup wizard input",
+    )
+    return declaration
+
+
+def append_job_declaration(
+    declaration: dict[str, Any],
+    *,
+    registry_path: Path,
+) -> None:
+    """Validate and append one job while preserving existing registry text."""
+    if registry_path.exists():
+        try:
+            payload = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as error:
+            raise SetupError("The registry is unreadable.") from error
+    else:
+        payload = {"jobs": []}
+    if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+        raise SetupError("The registry must contain a jobs list.")
+    combined = {"jobs": [*payload["jobs"], declaration]}
+    try:
+        validate_registry_payload(combined, source=str(registry_path))
+    except ValueError as error:
+        raise SetupError(str(error)) from error
+
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    if not registry_path.exists():
+        registry_path.write_text("jobs:\n", encoding="utf-8")
+    existing = registry_path.read_text(encoding="utf-8")
+    prefix = "" if not existing or existing.endswith("\n") else "\n"
+    serialized = yaml.safe_dump(
+        [declaration],
+        sort_keys=False,
+        default_flow_style=False,
+    )
+    with registry_path.open("a", encoding="utf-8") as registry_file:
+        registry_file.write(prefix + textwrap.indent(serialized, "  "))
+
+
+def print_next_steps(
+    *,
+    root: Path,
+    output: OutputFunction = print,
+) -> None:
+    """Print the approver command and a scheduled inspection cron example."""
+    quoted_root = shlex.quote(str(root))
+    output("")
+    output("Run next:")
+    output(
+        "Approver (keep this running):\n"
+        f"  cd {quoted_root} && .venv/bin/python -m watchman.approver"
+    )
+    output(
+        "Cron example (inspect and escalate every 5 minutes):\n"
+        f"  */5 * * * * cd {quoted_root} && "
+        ".venv/bin/python -m watchman.inspector --quiet && "
+        ".venv/bin/python -m watchman.investigator --notify"
+    )
+
+
+def run_wizard(
+    *,
+    root: Path = ROOT,
+    input_function: InputFunction = input,
+    secret_input: SecretInputFunction = getpass.getpass,
+    output: OutputFunction = print,
+    session: Any = requests,
+) -> int:
+    """Run setup and return a process exit status without exposing secrets."""
+    output("Night Watchman setup")
+    problems = check_python_and_dependencies()
+    if problems:
+        for problem in problems:
+            output(f"Setup unavailable: {problem}")
+        output("Install dependencies with: .venv/bin/pip install -r requirements.txt")
+        return 1
+    try:
+        configure_credentials(
+            root=root,
+            input_function=input_function,
+            secret_input=secret_input,
+            output=output,
+            session=session,
+        )
+        declaration = prompt_job_declaration(
+            input_function=input_function,
+            output=output,
+        )
+        append_job_declaration(
+            declaration,
+            registry_path=root / "watchman" / "registry.yaml",
+        )
+    except SetupError as error:
+        output(f"Setup unavailable: {error}")
+        return 1
+    output(f"Registered job: {declaration['name']}")
+    print_next_steps(root=root, output=output)
+    return 0
+
+
+def main() -> int:
+    """Run the interactive Night Watchman setup wizard."""
+    try:
+        return run_wizard()
+    except (EOFError, KeyboardInterrupt):
+        print("\nSetup canceled.")
+        return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
