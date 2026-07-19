@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import shutil
 import shlex
 import subprocess
@@ -204,3 +206,51 @@ def execute(
             job, root=root, registry_path=registry_path
         )
     raise ValueError(f"unsupported action: {action_id}")
+
+
+def run_all_registered(
+    *,
+    root: Path = ROOT,
+    registry_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Run every declared command once and return raw process evidence."""
+    path = _registry_path(root, registry_path)
+    return [
+        {
+            "job": job_name,
+            "job_exit_status": _run_job(
+                declaration,
+                root=root,
+                registry_path=path,
+            ),
+        }
+        for job_name, declaration in load_registry(path).items()
+    ]
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run registry commands for the local demo without job-name branches."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--run-all",
+        action="store_true",
+        help="run every command in registry order",
+    )
+    arguments = parser.parse_args(argv)
+    if not arguments.run_all:
+        parser.error("--run-all is required")
+    records = run_all_registered()
+    print(json.dumps({"job_runs": records}, indent=2, sort_keys=True))
+    return (
+        0
+        if all(
+            record["job_exit_status"].get("status") == "available"
+            and record["job_exit_status"].get("exit_code") == 0
+            for record in records
+        )
+        else 1
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

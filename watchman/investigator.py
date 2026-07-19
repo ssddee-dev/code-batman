@@ -1,4 +1,4 @@
-"""LLM investigation over deterministic evidence for flagged demo jobs only."""
+"""LLM investigation over deterministic generic file-artifact evidence."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ from typing import Any, Callable
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from watchman.collectors import collect_for_backup_db, collect_for_fetch_prices
+from watchman.collectors import collect_for_job
+from watchman.inspector import load_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY_PATH = ROOT / "watchman" / "history.jsonl"
@@ -29,11 +30,6 @@ TOP_LEVEL_SECTIONS = {
 
 Evidence = dict[str, Any]
 Collector = Callable[..., Evidence]
-
-COLLECTORS: dict[str, Collector] = {
-    "fetch_prices": collect_for_fetch_prices,
-    "backup_db": collect_for_backup_db,
-}
 
 DOSSIER_SCHEMA: Evidence = {
     "type": "object",
@@ -184,10 +180,13 @@ def build_evidence_package(
 ) -> Evidence:
     """Combine a flagged inspection with its deterministic collector evidence."""
     job_name = inspection_result.get("job")
-    selected_collector = collector or COLLECTORS.get(str(job_name))
-    if selected_collector is None:
-        raise ValueError(f"no collector declared for job: {job_name}")
-    collected = selected_collector(root=root)
+    if not isinstance(job_name, str):
+        raise ValueError("inspection result must contain a string job name")
+    collected = (
+        collector(root=root)
+        if collector is not None
+        else collect_for_job(job_name, root=root)
+    )
     return _attach_source_ids(
         {
             "inspection": copy.deepcopy(inspection_result),
@@ -496,8 +495,10 @@ def investigate(
 
 def load_latest_inspections(
     history_path: Path = HISTORY_PATH,
+    registry_path: Path = ROOT / "watchman" / "registry.yaml",
 ) -> list[Evidence]:
-    """Return the latest persisted inspection for each scoped demo job."""
+    """Return the latest persisted inspection for each registered job."""
+    job_names = list(load_registry(registry_path))
     latest: dict[str, Evidence] = {}
     if not history_path.exists():
         return []
@@ -509,9 +510,9 @@ def load_latest_inspections(
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if isinstance(record, dict) and record.get("job") in COLLECTORS:
+            if isinstance(record, dict) and record.get("job") in job_names:
                 latest[record["job"]] = record
-    return [latest[job] for job in COLLECTORS if job in latest]
+    return [latest[job] for job in job_names if job in latest]
 
 
 def investigate_flagged(

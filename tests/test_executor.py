@@ -185,6 +185,53 @@ class ExecutorTests(unittest.TestCase):
             "examples/synthetic_third_job.py",
         )
 
+    def test_run_all_registered_uses_registry_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            examples = root / "examples"
+            examples.mkdir()
+            registry = root / "watchman" / "registry.yaml"
+            registry.parent.mkdir()
+            declarations = []
+            for name, exit_code in (
+                ("first", 0),
+                ("synthetic_third_job", 4),
+            ):
+                script = examples / f"{name}.py"
+                script.write_text(
+                    f"raise SystemExit({exit_code})\n",
+                    encoding="utf-8",
+                )
+                declarations.append(
+                    {
+                        "name": name,
+                        "command": [
+                            sys.executable,
+                            str(script.relative_to(root)),
+                        ],
+                        "output": f"artifacts/{name}.txt",
+                        "expectations": {"min_size_bytes": 1},
+                    }
+                )
+            registry.write_text(
+                json.dumps({"jobs": declarations}),
+                encoding="utf-8",
+            )
+
+            records = executor.run_all_registered(root=root)
+
+        self.assertEqual(
+            [record["job"] for record in records],
+            ["first", "synthetic_third_job"],
+        )
+        self.assertEqual(
+            [
+                record["job_exit_status"]["exit_code"]
+                for record in records
+            ],
+            [0, 4],
+        )
+
     def test_dispatch_rejects_unscoped_actions_and_unregistered_jobs(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported action"):
             executor.execute("restart", "fetch_prices")

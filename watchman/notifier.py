@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 HISTORY_PATH = ROOT / "watchman" / "history.jsonl"
 TELEGRAM_MESSAGE_LIMIT = 4096
 TRUNCATION_MARKER = "(truncated, see full dossier)"
-SCOPED_JOBS = ("fetch_prices", "backup_db")
 BUTTON_ACTION_IDS = {"quarantine_and_rerun", "rerun_only", "none"}
 CALLBACK_DATA_LIMIT_BYTES = 64
+DOSSIER_FILENAME_PATTERN = re.compile(
+    r"^(?P<job>.+)_\d{8}_\d{6}_\d{6}\.json$"
+)
 
 Evidence = dict[str, Any]
 
@@ -25,11 +28,12 @@ class TelegramConfigurationError(RuntimeError):
     """Raised when required Telegram environment settings are unavailable."""
 
 
-def _job_name_from_path(dossier_path: Path) -> str:
-    for job_name in SCOPED_JOBS:
-        if dossier_path.stem.startswith(f"{job_name}_"):
-            return job_name
-    return "unavailable"
+def job_name_from_dossier_filename(filename: str) -> str:
+    """Return the generic job name encoded in a timestamped dossier filename."""
+    match = DOSSIER_FILENAME_PATTERN.fullmatch(filename)
+    if match is None:
+        raise ValueError(f"invalid dossier filename: {filename}")
+    return match.group("job")
 
 
 def _latest_flags(history_path: Path, job_name: str) -> list[Evidence] | None:
@@ -138,7 +142,10 @@ def format_dossier_message(
     if not isinstance(dossier, dict):
         raise ValueError(f"dossier must contain a JSON object: {path}")
 
-    job_name = _job_name_from_path(path)
+    try:
+        job_name = job_name_from_dossier_filename(path.name)
+    except ValueError:
+        job_name = "unavailable"
     flags = _latest_flags(history_path, job_name) or _fallback_flags(dossier)
     was_truncated = False
 

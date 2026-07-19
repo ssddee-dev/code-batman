@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +20,7 @@ from watchman.notifier import (
     CALLBACK_DATA_LIMIT_BYTES,
     TELEGRAM_MESSAGE_LIMIT,
     TelegramConfigurationError,
+    job_name_from_dossier_filename,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +28,6 @@ APPROVER_LOG_PATH = ROOT / "logs" / "approver.log"
 HANDLED_STATE_PATH = ROOT / "logs" / "handled_dossiers.jsonl"
 POLL_TIMEOUT_SECONDS = 30
 HTTP_TIMEOUT_SECONDS = 35
-SCOPED_JOBS = ("fetch_prices", "backup_db")
 TRUNCATION_MARKER = "(truncated, see full evidence)"
 
 Evidence = dict[str, Any]
@@ -51,16 +50,7 @@ def parse_callback_data(data: Any) -> tuple[str, str, str]:
         or not dossier_filename.endswith(".json")
     ):
         raise ValueError("callback_data has an invalid dossier filename")
-    job_name = next(
-        (
-            job
-            for job in SCOPED_JOBS
-            if dossier_filename.startswith(f"{job}_")
-        ),
-        None,
-    )
-    if job_name is None:
-        raise ValueError("callback_data has an unsupported job")
+    job_name = job_name_from_dossier_filename(dossier_filename)
     return action_id, dossier_filename, job_name
 
 
@@ -424,7 +414,6 @@ class Approver:
                 action_id,
                 job_name,
                 root=self.root,
-                python_executable=sys.executable,
             )
             inspection = self.inspect_function(
                 job_name,

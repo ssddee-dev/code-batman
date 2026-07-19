@@ -11,7 +11,6 @@ if [[ ! -x "${PYTHON}" ]]; then
 fi
 
 cd "${ROOT}"
-"${PYTHON}" jobs/fetch_prices.py
-"${PYTHON}" jobs/backup_db.py
+"${PYTHON}" -m watchman.executor --run-all
 "${PYTHON}" -m watchman.inspector --quiet
 "${PYTHON}" -m watchman.investigator --notify
