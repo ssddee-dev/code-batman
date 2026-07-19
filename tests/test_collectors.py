@@ -24,7 +24,10 @@ def write_registry(
         "name": name,
         "command": ["python3", f"examples/{name}.py"],
         "output": output,
-        "expectations": {"min_size_bytes": 1},
+        "expectations": {
+            "min_size_bytes": 1,
+            "expected_frequency_seconds": 60,
+        },
     }
     if log_path is not None:
         declaration["log_path"] = log_path

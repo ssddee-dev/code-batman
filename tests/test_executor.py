@@ -38,7 +38,10 @@ def write_job(
                         "name": job,
                         "command": [sys.executable, str(script.relative_to(root))],
                         "output": output,
-                        "expectations": {"min_size_bytes": 1},
+                        "expectations": {
+                            "min_size_bytes": 1,
+                            "expected_frequency_seconds": 60,
+                        },
                     }
                 ]
             }
@@ -210,7 +213,10 @@ class ExecutorTests(unittest.TestCase):
                             str(script.relative_to(root)),
                         ],
                         "output": f"artifacts/{name}.txt",
-                        "expectations": {"min_size_bytes": 1},
+                        "expectations": {
+                            "min_size_bytes": 1,
+                            "expected_frequency_seconds": 60,
+                        },
                     }
                 )
             registry.write_text(
@@ -231,6 +237,41 @@ class ExecutorTests(unittest.TestCase):
             ],
             [0, 4],
         )
+
+    def test_string_command_preserves_cron_shell_syntax(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = root / "watchman" / "registry.yaml"
+            registry.parent.mkdir(parents=True)
+            registry.write_text(
+                json.dumps(
+                    {
+                        "jobs": [
+                            {
+                                "name": "shell_job",
+                                "command": (
+                                    "mkdir -p artifacts && "
+                                    "printf evidence > artifacts/output.txt"
+                                ),
+                                "output": "artifacts/output.txt",
+                                "expectations": {
+                                    "min_size_bytes": 1,
+                                    "expected_frequency_seconds": 60,
+                                },
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            record = executor.rerun_only("shell_job", root=root, now=NOW)
+
+            self.assertEqual(record["job_exit_status"]["exit_code"], 0)
+            self.assertEqual(
+                (root / "artifacts" / "output.txt").read_text(encoding="utf-8"),
+                "evidence",
+            )
 
     def test_dispatch_rejects_unscoped_actions_and_unregistered_jobs(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported action"):

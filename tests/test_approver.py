@@ -101,21 +101,21 @@ class ApproverTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_callback_parser_accepts_scoped_payload(self) -> None:
+    def test_callback_parser_accepts_generic_timestamped_job_payload(self) -> None:
         parsed = approver.parse_callback_data(
             "quarantine_and_rerun:"
-            "fetch_prices_20260717_120000_000000.json"
+            "third_job_20260717_120000_000000.json"
         )
         self.assertEqual(
             parsed,
             (
                 "quarantine_and_rerun",
-                "fetch_prices_20260717_120000_000000.json",
-                "fetch_prices",
+                "third_job_20260717_120000_000000.json",
+                "third_job",
             ),
         )
 
-    def test_callback_parser_rejects_path_and_unscoped_action(self) -> None:
+    def test_callback_parser_rejects_path_and_unsupported_action(self) -> None:
         with self.assertRaises(ValueError):
             approver.parse_callback_data(
                 "rerun_only:../fetch_prices_20260717.json"

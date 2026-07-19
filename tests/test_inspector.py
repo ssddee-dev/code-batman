@@ -123,6 +123,22 @@ class InspectorTests(unittest.TestCase):
 
         self.assertIn("schema_mismatch", self.codes(result))
 
+    def test_undeclared_csv_schema_check_is_explicitly_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_csv(root / "data" / "prices.csv", ["symbol"], [["BTC"]])
+            declaration = csv_declaration()
+            del declaration["expectations"]["schema"]
+
+            result = self.inspect(root, declaration)
+
+        self.assertEqual(result["observed"]["schema"]["status"], "unavailable")
+        self.assertEqual(
+            result["observed"]["schema"]["reason"],
+            "not_declared_for_job",
+        )
+        self.assertNotIn("schema_change", self.codes(result))
+
     def test_row_count_drop_against_history_is_flagged(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -217,12 +233,16 @@ jobs:
     output: data/third.jsonl
     expectations:
       min_size_bytes: 1
-      min_rows: 1
+      min_rows: 2
       expected_frequency_seconds: 60
 """.lstrip(),
                 encoding="utf-8",
             )
             history_path.touch()
+            third_output = root / "data" / "third.jsonl"
+            third_output.parent.mkdir()
+            third_output.write_text('{"value": 1}\n', encoding="utf-8")
+            os.utime(third_output, (NOW.timestamp(), NOW.timestamp()))
 
             results = inspector.inspect_all(
                 root=root,
@@ -243,6 +263,9 @@ jobs:
             [record["job"] for record in history_records],
             ["first", "second", "synthetic_third_job"],
         )
+        third_result = results[2]
+        self.assertEqual(third_result["observed"]["row_count"]["value"], 1)
+        self.assertIn("row_count_below_minimum", self.codes(third_result))
 
     def test_quiet_cli_persists_without_printing(self) -> None:
         with patch.object(inspector, "inspect_all", return_value=[{"job": "first"}]):
@@ -298,6 +321,28 @@ jobs:
 
         self.assertEqual(result["job"], "fetch_prices")
         self.assertEqual([record["job"] for record in records], ["fetch_prices"])
+
+    def test_registry_rejects_row_expectation_for_non_tabular_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "registry.yaml"
+            registry_path.write_text(
+                """
+jobs:
+  - name: text_job
+    command: ["python3", "job.py"]
+    output: artifact.txt
+    expectations:
+      min_size_bytes: 1
+      min_rows: 1
+      expected_frequency_seconds: 60
+""".lstrip(),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "min_rows requires a CSV or JSONL output"
+            ):
+                inspector.load_registry(registry_path)
 
 
 if __name__ == "__main__":

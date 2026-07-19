@@ -24,6 +24,10 @@ EXPECTATION_KEYS = {
     "schema",
     "expected_frequency_seconds",
 }
+REQUIRED_EXPECTATION_KEYS = {
+    "min_size_bytes",
+    "expected_frequency_seconds",
+}
 
 
 def unavailable(reason: str, source: dict[str, Any]) -> Evidence:
@@ -56,13 +60,13 @@ def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
             raise ValueError(f"job name must be a non-empty string: {location}")
         if name in registry:
             raise ValueError(f"duplicate job name in registry: {name}")
-        if not (
-            isinstance(command, str)
-            and command.strip()
-            or isinstance(command, list)
-            and command
+        command_is_string = isinstance(command, str) and bool(command.strip())
+        command_is_list = (
+            isinstance(command, list)
+            and bool(command)
             and all(isinstance(part, str) and part for part in command)
-        ):
+        )
+        if not (command_is_string or command_is_list):
             raise ValueError(
                 f"job command must be a string or non-empty string list: {name}"
             )
@@ -74,11 +78,11 @@ def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
         if unknown_expectations:
             unknown = ", ".join(sorted(unknown_expectations))
             raise ValueError(f"unknown expectations for {name}: {unknown}")
-        for metric in (
-            "min_size_bytes",
-            "min_rows",
-            "expected_frequency_seconds",
-        ):
+        missing_expectations = REQUIRED_EXPECTATION_KEYS - set(expectations)
+        if missing_expectations:
+            missing = ", ".join(sorted(missing_expectations))
+            raise ValueError(f"missing expectations for {name}: {missing}")
+        for metric in ("min_size_bytes", "min_rows"):
             value = expectations.get(metric)
             if value is not None and (
                 isinstance(value, bool)
@@ -88,6 +92,16 @@ def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
                 raise ValueError(
                     f"{metric} must be a non-negative number for job: {name}"
                 )
+        frequency = expectations.get("expected_frequency_seconds")
+        if frequency is not None and (
+            isinstance(frequency, bool)
+            or not isinstance(frequency, (int, float))
+            or frequency <= 0
+        ):
+            raise ValueError(
+                "expected_frequency_seconds must be a positive number "
+                f"for job: {name}"
+            )
         expected_schema = expectations.get("schema")
         if expected_schema is not None and (
             not isinstance(expected_schema, list)
@@ -298,8 +312,16 @@ def inspect_job(
             "schema" in expectations or "min_rows" in expectations
         ):
             row_count, schema = read_csv_evidence(output_path)
-            observed["row_count"] = row_count
-            observed["schema"] = schema
+            observed["row_count"] = (
+                row_count
+                if "min_rows" in expectations
+                else unavailable("not_declared_for_job", registry_source)
+            )
+            observed["schema"] = (
+                schema
+                if "schema" in expectations
+                else unavailable("not_declared_for_job", registry_source)
+            )
         elif suffix in {".jsonl", ".ndjson"} and "min_rows" in expectations:
             observed["row_count"] = read_jsonl_row_count(output_path)
             observed["schema"] = unavailable(

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import shlex
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,24 +40,29 @@ def _job_declaration(
     return declaration, path
 
 
-def _command_parts(command: str | list[str]) -> list[str]:
-    return shlex.split(command) if isinstance(command, str) else list(command)
-
-
 def _run_job(
     declaration: dict[str, Any],
     *,
     root: Path,
     registry_path: Path,
 ) -> dict[str, Any]:
-    command = _command_parts(declaration["command"])
+    command = declaration["command"]
     started_at = _utc_now()
     try:
-        result = subprocess.run(
-            command,
-            cwd=root,
-            check=False,
-        )
+        if isinstance(command, str):
+            result = subprocess.run(
+                command,
+                cwd=root,
+                check=False,
+                shell=True,
+                executable="/bin/sh",
+            )
+        else:
+            result = subprocess.run(
+                list(command),
+                cwd=root,
+                check=False,
+            )
     except OSError as error:
         return {
             "status": "unavailable",
