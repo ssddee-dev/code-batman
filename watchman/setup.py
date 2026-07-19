@@ -13,12 +13,6 @@ import textwrap
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-import requests
-import yaml
-from dotenv import dotenv_values
-
-from watchman.inspector import validate_registry_payload
-
 ROOT = Path(__file__).resolve().parents[1]
 ENV_NAMES = (
     "OPENAI_API_KEY",
@@ -79,6 +73,8 @@ def load_existing_configuration(
     environ: Mapping[str, str] = os.environ,
 ) -> dict[str, str]:
     """Return configured credential values without printing their contents."""
+    from dotenv import dotenv_values
+
     file_values = dotenv_values(env_path) if env_path.exists() else {}
     configured: dict[str, str] = {}
     for name in ENV_NAMES:
@@ -137,11 +133,13 @@ def _yes_no(
 def auto_detect_telegram_chat_id(
     bot_token: str,
     *,
-    session: Any = requests,
+    session: Any | None = None,
 ) -> str:
     """Return the newest chat ID observed by Telegram getUpdates."""
+    requests = importlib.import_module("requests")
+    client = session or requests
     try:
-        response = session.get(
+        response = client.get(
             f"https://api.telegram.org/bot{bot_token}/getUpdates",
             params={"timeout": 0, "allowed_updates": ["message"]},
             timeout=20,
@@ -172,11 +170,13 @@ def send_telegram_test(
     bot_token: str,
     chat_id: str,
     *,
-    session: Any = requests,
+    session: Any | None = None,
 ) -> None:
     """Send a setup test message and fail explicitly when delivery is unavailable."""
+    requests = importlib.import_module("requests")
+    client = session or requests
     try:
-        response = session.post(
+        response = client.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={
                 "chat_id": chat_id,
@@ -199,7 +199,7 @@ def configure_credentials(
     input_function: InputFunction = input,
     secret_input: SecretInputFunction = getpass.getpass,
     output: OutputFunction = print,
-    session: Any = requests,
+    session: Any | None = None,
 ) -> dict[str, str]:
     """Collect missing credentials privately, persist them, and test Telegram."""
     env_path = root / ".env"
@@ -318,6 +318,8 @@ def prompt_job_declaration(
     output: OutputFunction = print,
 ) -> dict[str, Any]:
     """Prompt for one generic file-artifact job declaration."""
+    from watchman.inspector import validate_registry_payload
+
     output("Register your first file-artifact job.")
     while True:
         name = _prompt_text(
@@ -403,6 +405,10 @@ def append_job_declaration(
     registry_path: Path,
 ) -> None:
     """Validate and append one job while preserving existing registry text."""
+    import yaml
+
+    from watchman.inspector import validate_registry_payload
+
     if registry_path.exists():
         try:
             payload = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
@@ -459,7 +465,7 @@ def run_wizard(
     input_function: InputFunction = input,
     secret_input: SecretInputFunction = getpass.getpass,
     output: OutputFunction = print,
-    session: Any = requests,
+    session: Any | None = None,
 ) -> int:
     """Run setup and return a process exit status without exposing secrets."""
     output("Night Watchman setup")
