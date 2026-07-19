@@ -4,7 +4,7 @@
 
 Built for the OpenAI Build Week Challenge (July 2026). Codex built the system; GPT-5.6 powers the investigation at runtime.
 
-🎬 **Demo video:** [LINK — add after upload]
+🎬 **Demo video:** [[LINK]](https://youtu.be/ORbqkw7nBfU)
 
 ## The problem
 
@@ -16,6 +16,8 @@ Every monitoring tool can tell you your job *ran*. Exit code 0, green checkmark.
 2. **Investigate (GPT-5.6, evidence-only).** When something is flagged, deterministic collectors gather log tails, file samples, and history trends — then GPT-5.6 reasons over that evidence package alone. No filesystem access. Every claim in the resulting dossier must cite a source pointer that exists in the package; a validator rejects invented citations. The dossier states what the evidence shows, suspected areas in probabilistic language, what was *not* checked, and the decision the human needs to make — with options and risk notes. Never a verdict.
 3. **Escalate & approve-to-execute (Telegram).** The dossier arrives on your phone with inline buttons for exactly two bounded actions: `quarantine_and_rerun` (never deletes — moves the artifact to `quarantine/`, then reruns) and `rerun_only`. After execution the inspector runs again and replies with the re-inspection evidence — including flags that *remain*. The system never claims success; it shows you the post-action evidence and lets you conclude. Buttons are single-use.
 
+
+
 ## Design principles
 
 - **Evidence only, never verdicts.** Trust an agent because its evidence is verifiable, not because it sounds confident. The current wave of agent products competes on autonomy; this project deliberately competes on evidence quality.
@@ -23,7 +25,7 @@ Every monitoring tool can tell you your job *ran*. Exit code 0, green checkmark.
 - **Deterministic where possible, LLM only where reasoning is genuinely needed.** Detection and evidence collection are plain Python; GPT-5.6 touches only the investigation step.
 - **Bounded actions.** The executor can do exactly two things, both non-destructive.
 
-These principles are encoded in [`AGENTS.md`](AGENTS.md) and were enforced on Codex throughout the build.
+These principles are encoded in `[AGENTS.md](AGENTS.md)` and were enforced on Codex throughout the build.
 
 ## Run it
 
@@ -46,12 +48,14 @@ The demo failure is a real one: truncating the CSV destroys the header; the job 
 
 ## How it was built with Codex
 
-Codex was the implementing engineer; the human was the architect and reviewer. The full day-by-day log is in [`CODEX_LOG.md`](CODEX_LOG.md). Highlights:
+Codex was the implementing engineer; the human was the architect and reviewer. The full day-by-day log is in `[CODEX_LOG.md](CODEX_LOG.md)`. Highlights:
 
 - **AGENTS.md as a contract.** The project's principles and a hard scope guard were written *before the first line of code*, and Codex followed them — including refusing scope creep by routing new ideas to `TODO.md`.
 - **Codex pushed back correctly.** When asked to make the job rewrite headers on malformed files, Codex's implementation preserved non-empty files instead — the right call (a job shouldn't overwrite what might be real data), which we adopted as the core demo scenario.
 - **Small commits, tests throughout.** ~50 tests were written alongside features; the commit history shows the system growing in reviewable increments over 4 days: detection layer → investigation layer → Telegram escalation → approve-to-execute.
 - **GPT-5.6 at runtime, Codex at build time.** The model that investigates incidents is one API call inside a system whose safety properties (citation validation, schema enforcement, bounded actions) are deterministic code — built by Codex.
+
+
 
 ## Scope & honesty notes
 
