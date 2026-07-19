@@ -46,15 +46,33 @@ jobs:
 
 `command` may be a cron-style shell string or a YAML list of exact process arguments. `output` may be one path or a glob; the newest matching file is inspected. `min_rows` is available for CSV and JSONL outputs, and `schema` declares a CSV header. Omitted checks are reported as `not_declared_for_job` where their measurements require a declaration.
 
-## Run it
+## Install
 
 ```sh
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # add OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+curl -fsSL https://raw.githubusercontent.com/ssddee-dev/code-batman/main/install.sh | bash
+cd ~/night-watchman
+.venv/bin/python -m watchman.setup
+```
+
+The installer requires Python 3.11 or newer, clones Night Watchman into `~/night-watchman`, creates a project-local virtual environment, and installs the pinned dependency ranges. Set `NIGHT_WATCHMAN_DIR` before running the command to choose another destination.
+
+The wizard:
+
+- checks Python and required packages;
+- privately collects missing OpenAI and Telegram configuration;
+- can auto-detect your Telegram chat after you message the bot;
+- sends a Telegram test message;
+- validates and appends your first file-artifact job;
+- prints the approver command and a ready-to-copy inspection cron line.
+
+## Run the included demo
+
+After setup:
+
+```sh
 
 # terminal 1 — approval listener
-python -m watchman.approver
+.venv/bin/python -m watchman.approver
 
 # terminal 2 — all registered jobs + inspection (+ investigation & escalation)
 ./run_demo.sh
@@ -64,6 +82,16 @@ echo "" > data/prices.csv && ./run_demo.sh
 ```
 
 The demo failure is a real one: truncating the CSV destroys the header; the job keeps appending successfully (exit 0) without restoring it — a persistent silent failure that the inspector flags on every run. See the dossier GPT-5.6 produces from evidence alone: it reconstructs the external truncation from history/log contradictions without ever seeing the job's source code.
+
+## Manual installation appendix
+
+```sh
+git clone https://github.com/ssddee-dev/code-batman.git night-watchman
+cd night-watchman
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m watchman.setup
+```
 
 ## How it was built with Codex
 
