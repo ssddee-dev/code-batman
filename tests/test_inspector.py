@@ -17,16 +17,20 @@ from watchman import inspector
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
 
 
-def csv_expectations(**overrides: object) -> dict[str, object]:
-    values: dict[str, object] = {
-        "output_pattern": "data/prices.csv",
+def csv_declaration(**overrides: object) -> dict[str, object]:
+    expectations: dict[str, object] = {
         "min_rows": 2,
         "min_size_bytes": 1,
         "schema": ["timestamp", "symbol", "price_usd"],
         "expected_frequency_seconds": 3600,
     }
-    values.update(overrides)
-    return values
+    expectations.update(overrides)
+    return {
+        "name": "fetch_prices",
+        "command": [sys.executable, "examples/fetch_prices.py"],
+        "output": "data/prices.csv",
+        "expectations": expectations,
+    }
 
 
 def write_csv(path: Path, schema: list[str], rows: list[list[str]]) -> None:
@@ -66,12 +70,12 @@ class InspectorTests(unittest.TestCase):
     def inspect(
         self,
         root: Path,
-        expectations: dict[str, object] | None = None,
+        declaration: dict[str, object] | None = None,
         prior: tuple[int, dict[str, object]] | None = None,
     ) -> dict[str, object]:
         return inspector.inspect_job(
             "fetch_prices",
-            expectations or csv_expectations(),
+            declaration or csv_declaration(),
             root=root,
             registry_path=root / "watchman" / "registry.yaml",
             history_path=root / "watchman" / "history.jsonl",
@@ -95,7 +99,7 @@ class InspectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_csv(root / "data" / "prices.csv", ["symbol"], [])
-            result = self.inspect(root, csv_expectations(min_size_bytes=10_000))
+            result = self.inspect(root, csv_declaration(min_size_bytes=10_000))
 
         self.assertIn("size_below_minimum", self.codes(result))
 
@@ -115,7 +119,7 @@ class InspectorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             write_csv(root / "data" / "prices.csv", ["symbol", "price"], [])
-            result = self.inspect(root, csv_expectations(min_rows=0))
+            result = self.inspect(root, csv_declaration(min_rows=0))
 
         self.assertIn("schema_mismatch", self.codes(result))
 
@@ -149,7 +153,7 @@ class InspectorTests(unittest.TestCase):
             current_size = (root / "data" / "prices.csv").stat().st_size
             result = self.inspect(
                 root,
-                csv_expectations(min_rows=0),
+                csv_declaration(min_rows=0),
                 prior_record(size_bytes=current_size * 3),
             )
 
@@ -162,7 +166,7 @@ class InspectorTests(unittest.TestCase):
             write_csv(root / "data" / "prices.csv", current_schema, [])
             result = self.inspect(
                 root,
-                csv_expectations(min_rows=0, schema=current_schema),
+                csv_declaration(min_rows=0, schema=current_schema),
                 prior_record(schema=["timestamp", "symbol", "price_usd"]),
             )
 
@@ -196,14 +200,25 @@ class InspectorTests(unittest.TestCase):
             registry_path.write_text(
                 """
 jobs:
-  first:
-    output_pattern: data/first.txt
-    min_size_bytes: 1
-    expected_frequency_seconds: 60
-  second:
-    output_pattern: data/second.txt
-    min_size_bytes: 1
-    expected_frequency_seconds: 60
+  - name: first
+    command: ["python3", "first.py"]
+    output: data/first.txt
+    expectations:
+      min_size_bytes: 1
+      expected_frequency_seconds: 60
+  - name: second
+    command: ["python3", "second.py"]
+    output: data/second.txt
+    expectations:
+      min_size_bytes: 1
+      expected_frequency_seconds: 60
+  - name: synthetic_third_job
+    command: ["python3", "third.py"]
+    output: data/third.jsonl
+    expectations:
+      min_size_bytes: 1
+      min_rows: 1
+      expected_frequency_seconds: 60
 """.lstrip(),
                 encoding="utf-8",
             )
@@ -220,9 +235,13 @@ jobs:
                 for line in history_path.read_text(encoding="utf-8").splitlines()
             ]
 
-        self.assertEqual([result["job"] for result in results], ["first", "second"])
         self.assertEqual(
-            [record["job"] for record in history_records], ["first", "second"]
+            [result["job"] for result in results],
+            ["first", "second", "synthetic_third_job"],
+        )
+        self.assertEqual(
+            [record["job"] for record in history_records],
+            ["first", "second", "synthetic_third_job"],
         )
 
     def test_quiet_cli_persists_without_printing(self) -> None:
@@ -243,19 +262,23 @@ jobs:
             registry_path.write_text(
                 """
 jobs:
-  fetch_prices:
-    output_pattern: data/prices.csv
-    min_rows: 2
-    min_size_bytes: 50
-    schema:
-      - timestamp
-      - symbol
-      - price_usd
-    expected_frequency_seconds: 60
-  backup_db:
-    output_pattern: backups/demo_db_*.tar.gz
-    min_size_bytes: 100
-    expected_frequency_seconds: 60
+  - name: fetch_prices
+    command: ["python3", "examples/fetch_prices.py"]
+    output: data/prices.csv
+    expectations:
+      min_rows: 2
+      min_size_bytes: 50
+      schema:
+        - timestamp
+        - symbol
+        - price_usd
+      expected_frequency_seconds: 60
+  - name: backup_db
+    command: ["python3", "examples/backup_db.py"]
+    output: backups/demo_db_*.tar.gz
+    expectations:
+      min_size_bytes: 100
+      expected_frequency_seconds: 60
 """.lstrip(),
                 encoding="utf-8",
             )

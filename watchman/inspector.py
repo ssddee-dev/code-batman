@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Deterministically inspect demo job artifacts and emit sourced evidence."""
+"""Deterministically inspect registered file artifacts and emit sourced evidence."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import glob
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,12 @@ REGISTRY_PATH = ROOT / "watchman" / "registry.yaml"
 HISTORY_PATH = ROOT / "watchman" / "history.jsonl"
 
 Evidence = dict[str, Any]
+EXPECTATION_KEYS = {
+    "min_size_bytes",
+    "min_rows",
+    "schema",
+    "expected_frequency_seconds",
+}
 
 
 def unavailable(reason: str, source: dict[str, Any]) -> Evidence:
@@ -30,12 +37,79 @@ def available(value: Any, source: dict[str, Any]) -> Evidence:
 
 
 def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
-    """Load declared job expectations and identify their registry source."""
+    """Load and validate generic job declarations keyed by declared name."""
     with registry_path.open(encoding="utf-8") as registry_file:
         payload = yaml.safe_load(registry_file)
-    if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), dict):
-        raise ValueError(f"registry must contain a jobs mapping: {registry_path}")
-    return payload["jobs"]
+    if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+        raise ValueError(f"registry must contain a jobs list: {registry_path}")
+
+    registry: dict[str, Evidence] = {}
+    for index, declaration in enumerate(payload["jobs"]):
+        location = f"{registry_path}: jobs[{index}]"
+        if not isinstance(declaration, dict):
+            raise ValueError(f"job declaration must be a mapping: {location}")
+        name = declaration.get("name")
+        command = declaration.get("command")
+        output = declaration.get("output")
+        expectations = declaration.get("expectations")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"job name must be a non-empty string: {location}")
+        if name in registry:
+            raise ValueError(f"duplicate job name in registry: {name}")
+        if not (
+            isinstance(command, str)
+            and command.strip()
+            or isinstance(command, list)
+            and command
+            and all(isinstance(part, str) and part for part in command)
+        ):
+            raise ValueError(
+                f"job command must be a string or non-empty string list: {name}"
+            )
+        if not isinstance(output, str) or not output.strip():
+            raise ValueError(f"job output must be a non-empty path or glob: {name}")
+        if not isinstance(expectations, dict):
+            raise ValueError(f"job expectations must be a mapping: {name}")
+        unknown_expectations = set(expectations) - EXPECTATION_KEYS
+        if unknown_expectations:
+            unknown = ", ".join(sorted(unknown_expectations))
+            raise ValueError(f"unknown expectations for {name}: {unknown}")
+        for metric in (
+            "min_size_bytes",
+            "min_rows",
+            "expected_frequency_seconds",
+        ):
+            value = expectations.get(metric)
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or value < 0
+            ):
+                raise ValueError(
+                    f"{metric} must be a non-negative number for job: {name}"
+                )
+        expected_schema = expectations.get("schema")
+        if expected_schema is not None and (
+            not isinstance(expected_schema, list)
+            or not all(isinstance(column, str) for column in expected_schema)
+        ):
+            raise ValueError(f"schema must be a list of strings for job: {name}")
+        output_suffix = Path(output).suffix.lower()
+        if "min_rows" in expectations and output_suffix not in {
+            ".csv",
+            ".jsonl",
+            ".ndjson",
+        }:
+            raise ValueError(
+                f"min_rows requires a CSV or JSONL output for job: {name}"
+            )
+        if "schema" in expectations and output_suffix != ".csv":
+            raise ValueError(f"schema requires a CSV output for job: {name}")
+        log_path = declaration.get("log_path")
+        if log_path is not None and not isinstance(log_path, str):
+            raise ValueError(f"job log_path must be a string when declared: {name}")
+        registry[name] = declaration
+    return registry
 
 
 def load_history(
@@ -85,9 +159,19 @@ def latest_prior_for_job(
     return None
 
 
+def declared_path(root: Path, value: str) -> Path:
+    """Resolve a registry path relative to the project root when needed."""
+    path = Path(value)
+    return path if path.is_absolute() else root / path
+
+
 def latest_output(root: Path, pattern: str) -> Path | None:
     """Return the newest matching artifact by observed modification time."""
-    candidates = [path for path in root.glob(pattern) if path.is_file()]
+    candidates = [
+        Path(match)
+        for match in glob.glob(str(declared_path(root, pattern)), recursive=True)
+        if Path(match).is_file()
+    ]
     if not candidates:
         return None
     return max(candidates, key=lambda path: (path.stat().st_mtime_ns, str(path)))
@@ -115,6 +199,35 @@ def read_csv_evidence(output_path: Path) -> tuple[Evidence, Evidence]:
     return available(row_count, source), available(header, source)
 
 
+def read_jsonl_row_count(output_path: Path) -> Evidence:
+    """Return a sourced count of non-empty JSONL records, validating each line."""
+    source = {"path": str(output_path)}
+    try:
+        row_count = 0
+        with output_path.open(encoding="utf-8") as output_file:
+            for line_number, line in enumerate(output_file, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    json.loads(line)
+                except json.JSONDecodeError as error:
+                    return unavailable(
+                        "jsonl_row_count_uncomputable",
+                        {
+                            "path": str(output_path),
+                            "line": line_number,
+                            "error": str(error),
+                        },
+                    )
+                row_count += 1
+    except (OSError, UnicodeError) as error:
+        return unavailable(
+            "jsonl_row_count_uncomputable",
+            {"path": str(output_path), "error": str(error)},
+        )
+    return available(row_count, source)
+
+
 def add_flag(
     flags: list[Evidence],
     code: str,
@@ -135,7 +248,7 @@ def add_flag(
 
 def inspect_job(
     job_name: str,
-    expectations: Evidence,
+    declaration: Evidence,
     *,
     root: Path = ROOT,
     registry_path: Path = REGISTRY_PATH,
@@ -144,10 +257,14 @@ def inspect_job(
     inspected_at: datetime | None = None,
     history_issues: list[Evidence] | None = None,
 ) -> Evidence:
-    """Produce sourced observations and deterministic flags for one demo job."""
+    """Produce sourced observations and deterministic flags for one declared job."""
     now = (inspected_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    pattern = expectations["output_pattern"]
-    pattern_source = {"path": str(root / pattern), "pattern": pattern}
+    pattern = declaration["output"]
+    expectations = declaration["expectations"]
+    pattern_source = {
+        "path": str(declared_path(root, pattern)),
+        "pattern": pattern,
+    }
     registry_source = {"path": str(registry_path), "job": job_name}
     output_path = latest_output(root, pattern)
     flags: list[Evidence] = []
@@ -176,10 +293,18 @@ def inspect_job(
             "age_seconds": available(age_seconds, artifact_source),
         }
 
-        if "schema" in expectations or "min_rows" in expectations:
+        suffix = output_path.suffix.lower()
+        if suffix == ".csv" and (
+            "schema" in expectations or "min_rows" in expectations
+        ):
             row_count, schema = read_csv_evidence(output_path)
             observed["row_count"] = row_count
             observed["schema"] = schema
+        elif suffix in {".jsonl", ".ndjson"} and "min_rows" in expectations:
+            observed["row_count"] = read_jsonl_row_count(output_path)
+            observed["schema"] = unavailable(
+                "not_declared_for_job", registry_source
+            )
         else:
             observed["row_count"] = unavailable(
                 "not_declared_for_job", registry_source
@@ -304,6 +429,7 @@ def inspect_job(
         "job": job_name,
         "inspected_at": now.isoformat(),
         "registry_source": registry_source,
+        "declaration": declaration,
         "expectations": expectations,
         "output": output,
         "observed": observed,
@@ -320,16 +446,16 @@ def inspect_all(
     history_path: Path = HISTORY_PATH,
     inspected_at: datetime | None = None,
 ) -> list[Evidence]:
-    """Inspect both registered jobs and append each sourced result to history."""
+    """Inspect all registered jobs and append each sourced result to history."""
     registry = load_registry(registry_path)
     history, history_issues = load_history(history_path)
     results: list[Evidence] = []
     now = inspected_at or datetime.now(timezone.utc)
 
-    for job_name, expectations in registry.items():
+    for job_name, declaration in registry.items():
         result = inspect_job(
             job_name,
-            expectations,
+            declaration,
             root=root,
             registry_path=registry_path,
             history_path=history_path,
@@ -356,13 +482,13 @@ def inspect_one(
 ) -> Evidence:
     """Inspect one scoped job and append its sourced result to history."""
     registry = load_registry(registry_path)
-    expectations = registry.get(job_name)
-    if not isinstance(expectations, dict):
+    declaration = registry.get(job_name)
+    if not isinstance(declaration, dict):
         raise ValueError(f"job is not declared in registry: {job_name}")
     history, history_issues = load_history(history_path)
     result = inspect_job(
         job_name,
-        expectations,
+        declaration,
         root=root,
         registry_path=registry_path,
         history_path=history_path,

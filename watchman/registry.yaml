@@ -1,14 +1,24 @@
 jobs:
-  fetch_prices:
-    output_pattern: data/prices.csv
-    min_rows: 2
-    min_size_bytes: 50
-    schema:
-      - timestamp
-      - symbol
-      - price_usd
-    expected_frequency_seconds: 3600
-  backup_db:
-    output_pattern: backups/demo_db_*.tar.gz
-    min_size_bytes: 100
-    expected_frequency_seconds: 86400
+  - name: fetch_prices
+    command:
+      - .venv/bin/python
+      - examples/fetch_prices.py
+    output: data/prices.csv
+    log_path: logs/fetch_prices.log
+    expectations:
+      min_rows: 2
+      min_size_bytes: 50
+      schema:
+        - timestamp
+        - symbol
+        - price_usd
+      expected_frequency_seconds: 3600
+  - name: backup_db
+    command:
+      - .venv/bin/python
+      - examples/backup_db.py
+    output: backups/demo_db_*.tar.gz
+    log_path: logs/backup_db.log
+    expectations:
+      min_size_bytes: 100
+      expected_frequency_seconds: 86400
