@@ -153,6 +153,8 @@ def auto_detect_telegram_chat_id(
     requests = importlib.import_module("requests")
     client = session or requests
     try:
+        # Telegram persists allowed_updates for later getUpdates calls. Always
+        # override the approver's callback-only filter so setup can see messages.
         response = client.get(
             f"https://api.telegram.org/bot{bot_token}/getUpdates",
             params={"timeout": 0, "allowed_updates": ["message"]},

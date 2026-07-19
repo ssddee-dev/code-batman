@@ -245,7 +245,9 @@ class ApproverTests(unittest.TestCase):
             result_text,
         )
 
-    def test_polling_uses_timeout_and_advances_offset(self) -> None:
+    def test_polling_explicitly_requests_callbacks_and_advances_offset(
+        self,
+    ) -> None:
         response = Mock()
         response.json.return_value = {
             "ok": True,

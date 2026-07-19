@@ -447,6 +447,8 @@ class Approver:
             )
 
     def poll_once(self) -> int:
+        # Telegram persists allowed_updates between getUpdates calls. Declare
+        # callback_query every time so setup's message filter cannot leak here.
         response = self._post(
             "getUpdates",
             {

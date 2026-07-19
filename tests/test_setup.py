@@ -127,6 +127,14 @@ class SetupCredentialTests(unittest.TestCase):
         with self.assertRaisesRegex(setup.SetupError, "No new Telegram message"):
             setup.auto_detect_telegram_chat_id("token", session=session)
 
+        request = session.get.call_args
+        self.assertTrue(request.args[0].endswith("/getUpdates"))
+        self.assertEqual(
+            request.kwargs["params"],
+            {"timeout": 0, "allowed_updates": ["message"]},
+        )
+        self.assertEqual(request.kwargs["timeout"], 20)
+
     def test_test_message_requires_telegram_ok_payload(self) -> None:
         session = telegram_session()
         session.post.return_value.json.return_value = {
