@@ -15,14 +15,13 @@ Built for the OpenAI Build Week Challenge (July 2026). GPT-5.6 powers the invest
 
 ## Scope guard (read before adding anything)
 
-Fixed scope for the challenge (deadline July 21):
+Fixed scope for v0.2 (productization sprint):
 
-- Exactly **2 demo job types**: `fetch_prices.py` (API → CSV) and `backup_db.py` (SQLite → tar.gz)
-- Detection: file existence, size, row count, schema, anomaly vs. history (`history.jsonl`)
-- Investigation: hardcoded playbooks for the 2 job types only — log parsing, recent-change check, minimal reproduction
-- Escalation: Telegram, single channel
-- Approve-to-execute: exactly 2 action types (quarantine_and_rerun, rerun_only), inline-button approval via Telegram, post-execution re-inspection. No other actions.
-- **Anything else goes into `TODO.md`, not into code.** No generic job framework, no plugin system, no web dashboard, no additional job types, no config UI. If a feature idea appears mid-task, append it to TODO.md and continue.
+- Generic job registry: users declare ANY cron job in `registry.yaml`
+- One generic playbook for file-artifact jobs (replaces the 2 hardcoded ones)
+- Setup wizard CLI + one-line install
+- License gate: free tier = 2 jobs, licensed = unlimited
+- **Anything else goes into `TODO.md`, not into code.** If a feature idea appears mid-task, append it to `TODO.md` and continue.
 
 ## Conventions
 
