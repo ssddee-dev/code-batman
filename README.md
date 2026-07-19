@@ -1,52 +1,61 @@
-# code-batman
-An agent that checks whether your cron jobs actually did their job — and investigates with evidence when they didn't.
+# Night Watchman (`code-batman`)
 
-## Local setup
+**An agent that checks whether your cron jobs actually *did their job* — and when they didn't, investigates and brings you evidence, not verdicts.**
 
-Night Watchman requires Python 3.11 or newer. Create a project-local virtual
-environment and install the two runtime dependencies:
+Built for the OpenAI Build Week Challenge (July 2026). Codex built the system; GPT-5.6 powers the investigation at runtime.
 
-```sh
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
+🎬 **Demo video:** [LINK — add after upload]
 
-## Run the detection demo
+## The problem
 
-Run both demo jobs, inspect their latest artifacts, append the sourced evidence
-to `watchman/history.jsonl`, investigate flagged jobs with GPT-5.6, and print a
-short dossier summary:
+Every monitoring tool can tell you your job *ran*. Exit code 0, green checkmark. Almost none can tell you it actually *worked*. The classic silent failure: the job exits cleanly while its output is empty, truncated, or malformed — and the broken artifact quietly poisons everything downstream. Heartbeat monitors are blind to this. Enterprise AI-SRE platforms solve it for companies with full observability stacks; nothing serves the solo builder with five cron jobs on a VPS.
 
-```sh
-./run_demo.sh
-```
+## What it does
 
-Validated dossiers are written to `dossiers/{job}_{timestamp}.json`. If both
-model attempts fail schema or source-citation validation, their raw outputs and
-validation errors are retained under `dossiers/failed/` and the run exits
-explicitly.
+1. **Detect (deterministic, no LLM).** An inspector checks every job's output against declared expectations (`registry.yaml`) and its own history (`history.jsonl`): existence, size, row count, schema, anomalies vs. prior runs. Every observation carries the raw value and its source path. Metrics that can't be computed are labeled `unavailable` — never silently defaulted.
+2. **Investigate (GPT-5.6, evidence-only).** When something is flagged, deterministic collectors gather log tails, file samples, and history trends — then GPT-5.6 reasons over that evidence package alone. No filesystem access. Every claim in the resulting dossier must cite a source pointer that exists in the package; a validator rejects invented citations. The dossier states what the evidence shows, suspected areas in probabilistic language, what was *not* checked, and the decision the human needs to make — with options and risk notes. Never a verdict.
+3. **Escalate & approve-to-execute (Telegram).** The dossier arrives on your phone with inline buttons for exactly two bounded actions: `quarantine_and_rerun` (never deletes — moves the artifact to `quarantine/`, then reruns) and `rerun_only`. After execution the inspector runs again and replies with the re-inspection evidence — including flags that *remain*. The system never claims success; it shows you the post-action evidence and lets you conclude. Buttons are single-use.
 
-Run the Telegram approval listener in a separate terminal:
+## Design principles
+
+- **Evidence only, never verdicts.** Trust an agent because its evidence is verifiable, not because it sounds confident. The current wave of agent products competes on autonomy; this project deliberately competes on evidence quality.
+- **Missing data is labeled as missing.** No silent zeros.
+- **Deterministic where possible, LLM only where reasoning is genuinely needed.** Detection and evidence collection are plain Python; GPT-5.6 touches only the investigation step.
+- **Bounded actions.** The executor can do exactly two things, both non-destructive.
+
+These principles are encoded in [`AGENTS.md`](AGENTS.md) and were enforced on Codex throughout the build.
+
+## Run it
 
 ```sh
-source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # add OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+# terminal 1 — approval listener
 python -m watchman.approver
+
+# terminal 2 — jobs + inspection (+ investigation & escalation when flagged)
+./run_demo.sh
+
+# inject the demo silent failure, then rerun:
+echo "" > data/prices.csv && ./run_demo.sh
 ```
 
-It accepts callback queries only from `TELEGRAM_CHAT_ID`, acknowledges each
-dossier once, executes only `quarantine_and_rerun` or `rerun_only`, and appends
-the deterministic post-action inspection to `watchman/history.jsonl`. Stop the
-listener with Ctrl-C.
+The demo failure is a real one: truncating the CSV destroys the header; the job keeps appending successfully (exit 0) without restoring it — a persistent silent failure that the inspector flags on every run. See the dossier GPT-5.6 produces from evidence alone: it reconstructs the external truncation from history/log contradictions without ever seeing the job's source code.
 
-## Demo scenario: persistent CSV schema mismatch
+## How it was built with Codex
 
-The detection demo intentionally preserves a non-empty malformed price artifact.
-Replace `data/prices.csv` with a single blank row, then run `./run_demo.sh`
-repeatedly. The price job still exits successfully and appends BTC and ETH rows,
-but it does not rewrite a non-empty artifact. The deterministic inspector reports
-the observed empty schema as `schema_mismatch` on each inspection, with the CSV
-path and registry path attached as evidence.
+Codex was the implementing engineer; the human was the architect and reviewer. The full day-by-day log is in [`CODEX_LOG.md`](CODEX_LOG.md). Highlights:
 
-This differs from a genuinely missing or zero-byte CSV: in those cases the price
-job writes the declared header before appending observations.
+- **AGENTS.md as a contract.** The project's principles and a hard scope guard were written *before the first line of code*, and Codex followed them — including refusing scope creep by routing new ideas to `TODO.md`.
+- **Codex pushed back correctly.** When asked to make the job rewrite headers on malformed files, Codex's implementation preserved non-empty files instead — the right call (a job shouldn't overwrite what might be real data), which we adopted as the core demo scenario.
+- **Small commits, tests throughout.** ~50 tests were written alongside features; the commit history shows the system growing in reviewable increments over 4 days: detection layer → investigation layer → Telegram escalation → approve-to-execute.
+- **GPT-5.6 at runtime, Codex at build time.** The model that investigates incidents is one API call inside a system whose safety properties (citation validation, schema enforcement, bounded actions) are deterministic code — built by Codex.
+
+## Scope & honesty notes
+
+- Two demo job types, hardcoded playbooks, one Telegram channel — by design (see scope guard in AGENTS.md). A generic job framework is `TODO.md`, not code.
+- This is a working prototype built in 4 days, not a hardened product. Known limits are listed in each dossier's own `not_checked` section — the system applies its honesty principle to itself.
+
+MIT License.
