@@ -14,16 +14,36 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from watchman import setup
 
 
-def telegram_session(chat_id: int = 12345) -> Mock:
+def telegram_session(
+    chat_id: int = 12345,
+    *,
+    update_batches: list[list[dict]] | None = None,
+    token_validity: list[bool] | None = None,
+) -> Mock:
     session = Mock()
-    get_response = Mock()
-    get_response.json.return_value = {
-        "ok": True,
-        "result": [{"message": {"chat": {"id": chat_id}}}],
-    }
+    batches = list(
+        update_batches
+        if update_batches is not None
+        else [[{"message": {"chat": {"id": chat_id}}}]]
+    )
+    validity = list(token_validity or [])
+
+    def get(url: str, **kwargs: object) -> Mock:
+        response = Mock()
+        if url.endswith("/getMe"):
+            is_valid = validity.pop(0) if validity else True
+            response.json.return_value = {
+                "ok": is_valid,
+                "result": {"id": 1} if is_valid else None,
+            }
+        else:
+            updates = batches.pop(0) if batches else []
+            response.json.return_value = {"ok": True, "result": updates}
+        return response
+
     post_response = Mock()
     post_response.json.return_value = {"ok": True, "result": {}}
-    session.get.return_value = get_response
+    session.get.side_effect = get
     session.post.return_value = post_response
     return session
 
@@ -62,7 +82,7 @@ class SetupCredentialTests(unittest.TestCase):
 
         self.assertEqual(configured["TELEGRAM_CHAT_ID"], "existing-chat")
         secret_input.assert_not_called()
-        session.get.assert_not_called()
+        self.assertEqual(session.get.call_count, 1)
         session.post.assert_called_once()
         rendered_output = " ".join(call.args[0] for call in output.call_args_list)
         self.assertNotIn("existing-openai", rendered_output)
@@ -98,14 +118,13 @@ class SetupCredentialTests(unittest.TestCase):
         rendered_output = " ".join(call.args[0] for call in output.call_args_list)
         self.assertNotIn("new-openai-secret", rendered_output)
         self.assertNotIn("new-telegram-secret", rendered_output)
-        session.get.assert_called_once()
+        self.assertEqual(session.get.call_count, 3)
         session.post.assert_called_once()
 
     def test_auto_detection_labels_missing_update_explicitly(self) -> None:
-        session = telegram_session()
-        session.get.return_value.json.return_value = {"ok": True, "result": []}
+        session = telegram_session(update_batches=[[]])
 
-        with self.assertRaisesRegex(setup.SetupError, "No Telegram chat"):
+        with self.assertRaisesRegex(setup.SetupError, "No new Telegram message"):
             setup.auto_detect_telegram_chat_id("token", session=session)
 
     def test_test_message_requires_telegram_ok_payload(self) -> None:
@@ -117,6 +136,116 @@ class SetupCredentialTests(unittest.TestCase):
 
         with self.assertRaisesRegex(setup.SetupError, "did not confirm"):
             setup.send_telegram_test("token", "chat", session=session)
+
+    def test_mid_wizard_failure_preserves_values_and_rerun_skips_them(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first_session = telegram_session(update_batches=[[]])
+            first_secrets = Mock(
+                side_effect=["saved-openai-secret", "saved-bot-token"]
+            )
+
+            with self.assertRaises(setup.SetupCanceled):
+                setup.configure_credentials(
+                    root=root,
+                    environ={},
+                    secret_input=first_secrets,
+                    input_function=Mock(side_effect=["yes", "", "q"]),
+                    output=Mock(),
+                    session=first_session,
+                )
+
+            env_after_failure = root.joinpath(".env").read_text(encoding="utf-8")
+            rerun_session = telegram_session(chat_id=24680)
+            rerun_secrets = Mock(
+                side_effect=AssertionError(
+                    "saved API and bot credentials must be skipped"
+                )
+            )
+            rerun_output = Mock()
+            configured = setup.configure_credentials(
+                root=root,
+                environ={},
+                secret_input=rerun_secrets,
+                input_function=Mock(side_effect=["yes", ""]),
+                output=rerun_output,
+                session=rerun_session,
+            )
+
+        self.assertIn("OPENAI_API_KEY=saved-openai-secret", env_after_failure)
+        self.assertIn("TELEGRAM_BOT_TOKEN=saved-bot-token", env_after_failure)
+        self.assertNotIn("TELEGRAM_CHAT_ID", env_after_failure)
+        self.assertEqual(configured["TELEGRAM_CHAT_ID"], "24680")
+        rerun_secrets.assert_not_called()
+        rendered = " ".join(
+            call.args[0] for call in rerun_output.call_args_list
+        )
+        self.assertIn("OpenAI API key: already configured", rendered)
+        self.assertIn("Telegram bot token: already configured", rendered)
+
+    def test_auto_detection_retries_after_a_new_message(self) -> None:
+        session = telegram_session(
+            chat_id=-777,
+            update_batches=[[], [{"message": {"chat": {"id": -777}}}]],
+        )
+        output = Mock()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            configured = setup.configure_credentials(
+                root=Path(temp_dir),
+                environ={},
+                secret_input=Mock(
+                    side_effect=["openai-secret", "valid-bot-token"]
+                ),
+                input_function=Mock(side_effect=["yes", "", "r", ""]),
+                output=output,
+                session=session,
+            )
+
+        self.assertEqual(configured["TELEGRAM_CHAT_ID"], "-777")
+        rendered = " ".join(call.args[0] for call in output.call_args_list)
+        self.assertIn("Send a NEW message", rendered)
+        self.assertIn("bot token is valid", rendered)
+        self.assertIn("problem is only the missing message", rendered)
+
+    def test_get_me_distinguishes_invalid_token_from_missing_message(self) -> None:
+        session = telegram_session(
+            update_batches=[[]],
+            token_validity=[False, True, True],
+        )
+        output = Mock()
+        secret_input = Mock(
+            side_effect=[
+                "openai-secret",
+                "invalid-bot-token",
+                "valid-bot-token",
+                "manual-chat",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            configured = setup.configure_credentials(
+                root=root,
+                environ={},
+                secret_input=secret_input,
+                input_function=Mock(side_effect=["yes", "", "m"]),
+                output=output,
+                session=session,
+            )
+            env_text = root.joinpath(".env").read_text(encoding="utf-8")
+
+        self.assertEqual(configured["TELEGRAM_BOT_TOKEN"], "valid-bot-token")
+        self.assertEqual(configured["TELEGRAM_CHAT_ID"], "manual-chat")
+        self.assertIn("TELEGRAM_BOT_TOKEN=valid-bot-token", env_text)
+        self.assertNotIn("invalid-bot-token", env_text)
+        rendered = " ".join(call.args[0] for call in output.call_args_list)
+        self.assertIn("bot token is invalid", rendered)
+        self.assertIn("bot token is valid", rendered)
+        self.assertIn("problem is only the missing message", rendered)
+        prompts = " ".join(call.args[0] for call in secret_input.call_args_list)
+        self.assertIn("@BotFather", prompts)
+        self.assertIn("123456:ABC-DEF", prompts)
 
 
 class SetupRegistryTests(unittest.TestCase):

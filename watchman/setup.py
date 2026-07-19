@@ -36,6 +36,14 @@ class SetupError(RuntimeError):
     """Raised when setup cannot produce a validated local configuration."""
 
 
+class SetupCanceled(SetupError):
+    """Raised when the user explicitly quits an interactive setup step."""
+
+
+class TelegramChatNotFound(SetupError):
+    """Raised when getUpdates contains no new bot conversation."""
+
+
 def check_python_and_dependencies(
     *,
     version_info: tuple[int, ...] | None = None,
@@ -88,15 +96,21 @@ def load_existing_configuration(
 
 
 def write_env_values(env_path: Path, values: Mapping[str, str]) -> None:
-    """Append missing secret values to a local env file with private permissions."""
+    """Persist credential values to a local env file with private permissions."""
     if not values:
         return
     env_path.parent.mkdir(parents=True, exist_ok=True)
     existing = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
-    if existing and not existing.endswith("\n"):
-        existing += "\n"
-    additions = "".join(f"{name}={value}\n" for name, value in values.items())
-    env_path.write_text(existing + additions, encoding="utf-8")
+    remaining = dict(values)
+    updated_lines: list[str] = []
+    for line in existing.splitlines():
+        name, separator, _value = line.partition("=")
+        if separator and name in remaining:
+            updated_lines.append(f"{name}={remaining.pop(name)}")
+        else:
+            updated_lines.append(line)
+    updated_lines.extend(f"{name}={value}" for name, value in remaining.items())
+    env_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
     env_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
@@ -161,8 +175,32 @@ def auto_detect_telegram_chat_id(
         chat_id = chat.get("id") if isinstance(chat, dict) else None
         if isinstance(chat_id, (str, int)):
             return str(chat_id)
-    raise SetupError(
-        "No Telegram chat was found. Send the bot a message, then try again."
+    raise TelegramChatNotFound(
+        "No new Telegram message was found for this bot."
+    )
+
+
+def telegram_bot_token_is_valid(
+    bot_token: str,
+    *,
+    session: Any | None = None,
+) -> bool:
+    """Return whether Telegram getMe confirms the supplied bot token."""
+    requests = importlib.import_module("requests")
+    client = session or requests
+    try:
+        response = client.get(
+            f"https://api.telegram.org/bot{bot_token}/getMe",
+            timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.RequestException, ValueError):
+        return False
+    return (
+        isinstance(payload, dict)
+        and payload.get("ok") is True
+        and isinstance(payload.get("result"), dict)
     )
 
 
@@ -204,21 +242,38 @@ def configure_credentials(
     """Collect missing credentials privately, persist them, and test Telegram."""
     env_path = root / ".env"
     configured = load_existing_configuration(env_path, environ=environ)
-    pending: dict[str, str] = {}
 
-    for name, label in (
-        ("OPENAI_API_KEY", "OpenAI API key"),
-        ("TELEGRAM_BOT_TOKEN", "Telegram bot token"),
-    ):
-        if name in configured:
-            output(f"{label}: already configured; skipping.")
-            continue
-        pending[name] = _prompt_nonempty(
-            f"{label}: ",
+    if "OPENAI_API_KEY" in configured:
+        output("OpenAI API key: already configured; skipping.")
+    else:
+        openai_key = _prompt_nonempty(
+            "OpenAI API key: ",
             secret_input=secret_input,
             output=output,
         )
-        configured[name] = pending[name]
+        configured["OPENAI_API_KEY"] = openai_key
+        write_env_values(env_path, {"OPENAI_API_KEY": openai_key})
+
+    if "TELEGRAM_BOT_TOKEN" in configured:
+        output("Telegram bot token: already configured; skipping.")
+        if not telegram_bot_token_is_valid(
+            configured["TELEGRAM_BOT_TOKEN"],
+            session=session,
+        ):
+            output("The configured Telegram bot token is invalid.")
+            configured["TELEGRAM_BOT_TOKEN"] = _prompt_valid_bot_token(
+                env_path=env_path,
+                secret_input=secret_input,
+                output=output,
+                session=session,
+            )
+    else:
+        configured["TELEGRAM_BOT_TOKEN"] = _prompt_valid_bot_token(
+            env_path=env_path,
+            secret_input=secret_input,
+            output=output,
+            session=session,
+        )
 
     if "TELEGRAM_CHAT_ID" in configured:
         output("Telegram chat ID: already configured; skipping.")
@@ -227,25 +282,24 @@ def configure_credentials(
         input_function=input_function,
         default=True,
     ):
-        output("Open Telegram and send any message to your bot.")
-        input_function("Press Enter after the bot has received your message: ")
-        chat_id = auto_detect_telegram_chat_id(
-            configured["TELEGRAM_BOT_TOKEN"],
+        configured["TELEGRAM_CHAT_ID"] = _detect_or_prompt_chat_id(
+            env_path=env_path,
+            bot_token=configured["TELEGRAM_BOT_TOKEN"],
+            configured=configured,
+            input_function=input_function,
+            secret_input=secret_input,
+            output=output,
             session=session,
         )
-        pending["TELEGRAM_CHAT_ID"] = chat_id
-        configured["TELEGRAM_CHAT_ID"] = chat_id
-        output("Telegram chat ID detected.")
     else:
         chat_id = _prompt_nonempty(
             "Telegram chat ID: ",
             secret_input=secret_input,
             output=output,
         )
-        pending["TELEGRAM_CHAT_ID"] = chat_id
         configured["TELEGRAM_CHAT_ID"] = chat_id
+        write_env_values(env_path, {"TELEGRAM_CHAT_ID": chat_id})
 
-    write_env_values(env_path, pending)
     send_telegram_test(
         configured["TELEGRAM_BOT_TOKEN"],
         configured["TELEGRAM_CHAT_ID"],
@@ -253,6 +307,92 @@ def configure_credentials(
     )
     output("Telegram test message sent.")
     return configured
+
+
+def _prompt_valid_bot_token(
+    *,
+    env_path: Path,
+    secret_input: SecretInputFunction,
+    output: OutputFunction,
+    session: Any | None,
+) -> str:
+    while True:
+        token = _prompt_nonempty(
+            "Telegram bot token "
+            "(from @BotFather, looks like 123456:ABC-DEF...): ",
+            secret_input=secret_input,
+            output=output,
+        )
+        if telegram_bot_token_is_valid(token, session=session):
+            write_env_values(env_path, {"TELEGRAM_BOT_TOKEN": token})
+            return token
+        output("The Telegram bot token is invalid. Check @BotFather and try again.")
+
+
+def _detect_or_prompt_chat_id(
+    *,
+    env_path: Path,
+    bot_token: str,
+    configured: dict[str, str],
+    input_function: InputFunction,
+    secret_input: SecretInputFunction,
+    output: OutputFunction,
+    session: Any | None,
+) -> str:
+    while True:
+        output(
+            "Send a NEW message to your bot in Telegram. "
+            "Old messages may already have been consumed."
+        )
+        input_function("Press Enter after sending the new message: ")
+        if not telegram_bot_token_is_valid(bot_token, session=session):
+            output("The Telegram bot token is invalid.")
+            bot_token = _prompt_valid_bot_token(
+                env_path=env_path,
+                secret_input=secret_input,
+                output=output,
+                session=session,
+            )
+            configured["TELEGRAM_BOT_TOKEN"] = bot_token
+            continue
+        try:
+            chat_id = auto_detect_telegram_chat_id(
+                bot_token,
+                session=session,
+            )
+        except TelegramChatNotFound:
+            output(
+                "The bot token is valid, but no NEW message was found. "
+                "The problem is only the missing message."
+            )
+        except SetupError:
+            output(
+                "The bot token is valid, but Telegram updates are temporarily "
+                "unavailable."
+            )
+        else:
+            write_env_values(env_path, {"TELEGRAM_CHAT_ID": chat_id})
+            output("Telegram chat ID detected.")
+            return chat_id
+
+        while True:
+            choice = input_function(
+                "Choose [r]etry, [m]anual chat ID entry, or [q]uit: "
+            ).strip().lower()
+            if choice in {"r", "retry"}:
+                break
+            if choice in {"m", "manual"}:
+                chat_id = _prompt_nonempty(
+                    "Telegram chat ID: ",
+                    secret_input=secret_input,
+                    output=output,
+                )
+                write_env_values(env_path, {"TELEGRAM_CHAT_ID": chat_id})
+                return chat_id
+            if choice in {"q", "quit"}:
+                raise SetupCanceled(
+                    "Setup canceled after saving the credentials entered so far."
+                )
 
 
 def _prompt_text(
