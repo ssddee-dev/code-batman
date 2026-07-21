@@ -13,6 +13,8 @@ from typing import Any
 
 import yaml
 
+from watchman.license import enforce_job_limit
+
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY_PATH = ROOT / "watchman" / "registry.yaml"
 HISTORY_PATH = ROOT / "watchman" / "history.jsonl"
@@ -41,10 +43,11 @@ def available(value: Any, source: dict[str, Any]) -> Evidence:
 
 
 def load_registry(registry_path: Path = REGISTRY_PATH) -> dict[str, Evidence]:
-    """Load and validate generic job declarations keyed by declared name."""
+    """Load validated jobs, applying the reliable free-tier registry limit."""
     with registry_path.open(encoding="utf-8") as registry_file:
         payload = yaml.safe_load(registry_file)
-    return validate_registry_payload(payload, source=str(registry_path))
+    registry = validate_registry_payload(payload, source=str(registry_path))
+    return enforce_job_limit(registry, registry_path=registry_path)
 
 
 def validate_registry_payload(

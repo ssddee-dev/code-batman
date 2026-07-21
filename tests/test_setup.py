@@ -12,6 +12,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from watchman import setup
+from watchman import license
 
 
 def telegram_session(
@@ -359,6 +360,46 @@ class SetupRegistryTests(unittest.TestCase):
                 )
 
             self.assertEqual(registry.read_text(encoding="utf-8"), original)
+
+    def test_sixth_job_is_blocked_with_free_tier_message(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry = root / "watchman" / "registry.yaml"
+            registry.parent.mkdir()
+            jobs = [
+                {
+                    "name": f"job_{index}",
+                    "command": f"python job_{index}.py",
+                    "output": f"job_{index}.txt",
+                    "expectations": {
+                        "min_size_bytes": 1,
+                        "expected_frequency_seconds": 60,
+                    },
+                }
+                for index in range(5)
+            ]
+            original = yaml.safe_dump({"jobs": jobs}, sort_keys=False)
+            registry.write_text(original, encoding="utf-8")
+            sixth = {
+                "name": "job_5",
+                "command": "python job_5.py",
+                "output": "job_5.txt",
+                "expectations": {
+                    "min_size_bytes": 1,
+                    "expected_frequency_seconds": 60,
+                },
+            }
+
+            with self.assertRaisesRegex(
+                setup.SetupError,
+                "1 job\\(s\\) exceed the free tier",
+            ) as raised:
+                setup.append_job_declaration(sixth, registry_path=registry)
+
+            resulting = registry.read_text(encoding="utf-8")
+
+        self.assertEqual(str(raised.exception), license.free_tier_message(6))
+        self.assertEqual(resulting, original)
 
     def test_next_steps_end_with_approver_and_cron_commands(self) -> None:
         output = Mock()

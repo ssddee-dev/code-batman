@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock
+from unittest.mock import patch
 
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from watchman import license
+from watchman import inspector
 
 NOW = datetime(2026, 7, 21, 8, 0, tzinfo=timezone.utc)
 
@@ -25,6 +29,89 @@ def response(*, valid: bool, status_code: int = 200) -> Mock:
 
 
 class LicenseValidationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        license._EMITTED_LIMIT_WARNINGS.clear()
+
+    def test_under_limit_does_not_require_a_license(self) -> None:
+        registry = {f"job_{index}": {} for index in range(5)}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "watchman" / "registry.yaml"
+            with patch.object(license, "license_is_valid") as validity_check:
+                limited = license.enforce_job_limit(
+                    registry,
+                    registry_path=registry_path,
+                )
+
+        self.assertEqual(list(limited), list(registry))
+        validity_check.assert_not_called()
+
+    def test_over_limit_runs_first_five_and_emits_once(self) -> None:
+        registry = {f"job_{index}": {} for index in range(7)}
+        messages: list[str] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "watchman" / "registry.yaml"
+            with patch.object(license, "license_is_valid", return_value=False):
+                first = license.enforce_job_limit(
+                    registry,
+                    registry_path=registry_path,
+                    emit=messages.append,
+                )
+                second = license.enforce_job_limit(
+                    registry,
+                    registry_path=registry_path,
+                    emit=messages.append,
+                )
+
+        self.assertEqual(list(first), [f"job_{index}" for index in range(5)])
+        self.assertEqual(list(second), [f"job_{index}" for index in range(5)])
+        self.assertEqual(messages, [license.free_tier_message(7)])
+
+    def test_registry_load_enforces_first_five_without_license(self) -> None:
+        jobs = [
+            {
+                "name": f"job_{index}",
+                "command": f"python job_{index}.py",
+                "output": f"job_{index}.txt",
+                "expectations": {
+                    "min_size_bytes": 1,
+                    "expected_frequency_seconds": 60,
+                },
+            }
+            for index in range(7)
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            registry_path = root / "watchman" / "registry.yaml"
+            registry_path.parent.mkdir()
+            registry_path.write_text(
+                json.dumps({"jobs": jobs}),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+
+            with redirect_stderr(stderr):
+                loaded = inspector.load_registry(registry_path)
+                loaded_again = inspector.load_registry(registry_path)
+
+        self.assertEqual(list(loaded), [f"job_{index}" for index in range(5)])
+        self.assertEqual(list(loaded_again), list(loaded))
+        self.assertEqual(
+            stderr.getvalue().count("job(s) exceed the free tier"),
+            1,
+        )
+
+    def test_valid_license_keeps_all_registered_jobs(self) -> None:
+        registry = {f"job_{index}": {} for index in range(7)}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            registry_path = Path(temp_dir) / "watchman" / "registry.yaml"
+            with patch.object(license, "license_is_valid", return_value=True):
+                limited = license.enforce_job_limit(
+                    registry,
+                    registry_path=registry_path,
+                )
+
+        self.assertEqual(list(limited), list(registry))
+
     def test_valid_key_uses_form_encoded_license_api_request(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

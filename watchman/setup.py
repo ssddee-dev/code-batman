@@ -550,6 +550,7 @@ def append_job_declaration(
     import yaml
 
     from watchman.inspector import validate_registry_payload
+    from watchman.license import FREE_JOB_LIMIT, free_tier_message, license_is_valid
 
     if registry_path.exists():
         try:
@@ -565,6 +566,18 @@ def append_job_declaration(
         validate_registry_payload(combined, source=str(registry_path))
     except ValueError as error:
         raise SetupError(str(error)) from error
+    if len(combined["jobs"]) > FREE_JOB_LIMIT:
+        root = (
+            registry_path.parent.parent
+            if registry_path.parent.name == "watchman"
+            else registry_path.parent
+        )
+        try:
+            licensed = license_is_valid(root=root)
+        except Exception:
+            licensed = False
+        if not licensed:
+            raise SetupError(free_tier_message(len(combined["jobs"])))
 
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     if not registry_path.exists():

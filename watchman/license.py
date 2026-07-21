@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -18,6 +19,13 @@ LICENSE_ENV_NAME = "NIGHT_WATCHMAN_LICENSE_KEY"
 CACHE_TTL = timedelta(hours=24)
 CACHE_PATH = ROOT / "data" / "license_cache.json"
 LOG_PATH = ROOT / "logs" / "license.log"
+FREE_JOB_LIMIT = 5
+CHECKOUT_URL = (
+    "https://ssddeelabs.lemonsqueezy.com/checkout/buy/"
+    "03a57721-0a8f-46fb-a139-159dfc69599e"
+)
+
+_EMITTED_LIMIT_WARNINGS: set[str] = set()
 
 CacheRecord = dict[str, Any]
 
@@ -59,6 +67,13 @@ def _append_log(path: Path, message: str, *, now: datetime) -> None:
         log_file.write(f"{now.isoformat()} {message}\n")
 
 
+def _safe_append_log(path: Path, message: str, *, now: datetime) -> None:
+    try:
+        _append_log(path, message, now=now)
+    except OSError:
+        pass
+
+
 def _read_cache(path: Path) -> CacheRecord | None:
     if not path.exists():
         return None
@@ -77,6 +92,13 @@ def _write_cache(path: Path, record: CacheRecord) -> None:
         encoding="utf-8",
     )
     temporary.replace(path)
+
+
+def _safe_write_cache(path: Path, record: CacheRecord) -> None:
+    try:
+        _write_cache(path, record)
+    except OSError:
+        pass
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -154,7 +176,7 @@ def license_is_valid(
         if last_attempt is not None and checked_at - last_attempt < CACHE_TTL:
             cached = _cached_result(cache)
             if cache.get("last_attempt_outcome") == "api_unreachable":
-                _append_log(
+                _safe_append_log(
                     resolved_log_path,
                     "license_api_unreachable using_cached_result"
                     if cached is not None
@@ -179,8 +201,8 @@ def license_is_valid(
             record["validation_status"] = "unavailable"
             record.pop("valid", None)
             record.pop("validated_at", None)
-        _write_cache(resolved_cache_path, record)
-        _append_log(
+        _safe_write_cache(resolved_cache_path, record)
+        _safe_append_log(
             resolved_log_path,
             "license_api_unreachable using_cached_result"
             if cached is not None
@@ -189,7 +211,7 @@ def license_is_valid(
         )
         return cached if cached is not None else False
 
-    _write_cache(
+    _safe_write_cache(
         resolved_cache_path,
         {
             "key_fingerprint": fingerprint,
@@ -201,3 +223,51 @@ def license_is_valid(
         },
     )
     return valid
+
+
+def free_tier_message(job_count: int) -> str:
+    """Return the exact free-tier notice for a declared job count."""
+    excess = max(0, job_count - FREE_JOB_LIMIT)
+    return (
+        f"{excess} job(s) exceed the free tier ({FREE_JOB_LIMIT}). "
+        f"Unlimited jobs:\n{CHECKOUT_URL}"
+    )
+
+
+def _project_root_for_registry(registry_path: Path) -> Path:
+    if registry_path.parent.name == "watchman":
+        return registry_path.parent.parent
+    return registry_path.parent
+
+
+def enforce_job_limit(
+    registry: dict[str, CacheRecord],
+    *,
+    registry_path: Path,
+    emit: Any | None = None,
+) -> dict[str, CacheRecord]:
+    """Return all licensed jobs or the first five free jobs, warning once."""
+    if len(registry) <= FREE_JOB_LIMIT:
+        return registry
+    root = _project_root_for_registry(registry_path)
+    try:
+        licensed = license_is_valid(root=root)
+    except Exception:
+        licensed = False
+        _safe_append_log(
+            root / "logs" / "license.log",
+            "license_check_unavailable using_free_tier",
+            now=_utc_now(),
+        )
+    if licensed:
+        return registry
+
+    warning_key = str(registry_path.resolve())
+    if warning_key not in _EMITTED_LIMIT_WARNINGS:
+        message = free_tier_message(len(registry))
+        if emit is None:
+            print(message, file=sys.stderr)
+        else:
+            emit(message)
+        _EMITTED_LIMIT_WARNINGS.add(warning_key)
+    return dict(list(registry.items())[:FREE_JOB_LIMIT])
