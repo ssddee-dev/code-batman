@@ -4,7 +4,8 @@
 
 Submitted to the OpenAI Build Week Challenge (July 2026) and now being productized as v0.2. Codex builds the system; GPT-5.6 powers the investigation at runtime.
 
-🎬 **Demo video:** [[LINK]](https://youtu.be/ORbqkw7nBfU)
+🎬 **Demo video:** https://youtu.be/ORbqkw7nBfU
+*(recorded on v0.1 — the core flow is unchanged; v0.2 added the generic job registry and setup wizard)*
 
 ## The problem
 
@@ -109,4 +110,9 @@ Codex was the implementing engineer; the human was the architect and reviewer. T
 - The included price-fetch and SQLite-backup scripts are examples only. Inspection, investigation, rerun, quarantine, notification, and approval contain no job-name branches.
 - v0.2 is a productization sprint, not a hardened release. Setup and licensing work remain within the fixed sprint scope; unrelated features stay in `TODO.md`. Known investigation limits are listed in each dossier's own `not_checked` section.
 
-MIT License.
+## License
+
+Functional Source License (FSL-1.1-MIT). The source is fully available:
+use, modify, and self-host freely, including commercially — you just
+can't offer Night Watchman itself as a competing product. Converts to
+MIT two years after each release. See [LICENSE.md](LICENSE.md).
