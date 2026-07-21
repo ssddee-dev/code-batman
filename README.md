@@ -66,6 +66,20 @@ The wizard:
 - validates and appends your first file-artifact job;
 - prints the approver command and a ready-to-copy inspection cron line.
 
+## Pricing
+
+**Free:** Monitor up to 5 jobs with every Night Watchman feature enabled.
+
+**Early-bird license:** $39 one-time for all v1.x releases. It unlocks
+unlimited jobs, includes 3 machine activations, and never expires. Add the
+issued key as `NIGHT_WATCHMAN_LICENSE_KEY` in `.env`.
+
+Monitoring reliability always beats license enforcement. Night Watchman
+checks a license at most once per 24 hours and caches the result locally. If
+the license server is unavailable, it uses the last cached result; without a
+prior successful validation, it safely falls back to the five-job free tier.
+The first five jobs continue running in every case.
+
 ## Run the included demo
 
 After setup:
@@ -108,7 +122,7 @@ Codex was the implementing engineer; the human was the architect and reviewer. T
 ## Scope & honesty notes
 
 - The included price-fetch and SQLite-backup scripts are examples only. Inspection, investigation, rerun, quarantine, notification, and approval contain no job-name branches.
-- v0.2 is a productization sprint, not a hardened release. Setup and licensing work remain within the fixed sprint scope; unrelated features stay in `TODO.md`. Known investigation limits are listed in each dossier's own `not_checked` section.
+- v0.2 is a productization sprint, not a hardened release. The generic registry, setup wizard, and reliable five-job license gate are the fixed sprint scope; unrelated features stay in `TODO.md`. Known investigation limits are listed in each dossier's own `not_checked` section.
 
 ## License
 

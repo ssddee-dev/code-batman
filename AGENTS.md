@@ -20,7 +20,7 @@ Fixed scope for v0.2 (productization sprint):
 - Generic job registry: users declare ANY cron job in `registry.yaml`
 - One generic playbook for file-artifact jobs (replaces the 2 hardcoded ones)
 - Setup wizard CLI + one-line install
-- License gate: free tier = 2 jobs, licensed = unlimited
+- License gate: free tier = 5 jobs, licensed = unlimited
 - **Anything else goes into `TODO.md`, not into code.** If a feature idea appears mid-task, append it to `TODO.md` and continue.
 
 ## Conventions
