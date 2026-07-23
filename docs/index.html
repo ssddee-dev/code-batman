@@ -8,9 +8,15 @@
   <meta property="og:title" content="Night Watchman — Cron Job Output Monitoring">
   <meta property="og:description" content="Exit code 0 is not a health check. Night Watchman checks scheduled job outputs and escalates evidence, not verdicts.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://ssddee-dev.github.io/code-batman/">
+  <meta property="og:url" content="https://nightwatchman.dev/">
+  <meta property="og:image" content="https://nightwatchman.dev/assets/og-night-watchman.png">
   <meta name="twitter:card" content="summary_large_image">
-  <link rel="canonical" href="https://ssddee-dev.github.io/code-batman/">
+  <meta name="twitter:title" content="Night Watchman — Cron Job Output Monitoring">
+  <meta name="twitter:description" content="Exit code 0 is not a health check. Night Watchman checks scheduled job outputs and escalates evidence, not verdicts.">
+  <meta name="twitter:image" content="https://nightwatchman.dev/assets/og-night-watchman.png">
+  <link rel="canonical" href="https://nightwatchman.dev/">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Night Watchman","description":"Cron job output monitoring and AI investigation for scheduled file-artifact jobs. Evidence, not verdicts.","applicationCategory":"DeveloperApplication","operatingSystem":"macOS, Linux","url":"https://nightwatchman.dev/","image":"https://nightwatchman.dev/assets/og-night-watchman.png","sameAs":["https://github.com/ssddee-dev/code-batman","https://youtu.be/ORbqkw7nBfU"],"offers":[{"@type":"Offer","price":"0","priceCurrency":"USD","name":"Free tier up to 5 jobs"},{"@type":"Offer","price":"39","priceCurrency":"USD","name":"One-time early-bird license for unlimited v1.x jobs"}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does Night Watchman monitor?","acceptedAnswer":{"@type":"Answer","text":"Night Watchman monitors file-artifact cron jobs: scripts that produce CSVs, JSON, reports, dumps, logs, exports, or similar files."}},{"@type":"Question","name":"Does Night Watchman trust exit code 0?","acceptedAnswer":{"@type":"Answer","text":"No. Exit code 0 is one weak process signal. Night Watchman checks the output artifact for freshness, size, rows, schema, and history."}},{"@type":"Question","name":"Does Night Watchman automatically fix jobs?","acceptedAnswer":{"@type":"Answer","text":"No. It sends evidence and bounded actions to a human operator for Telegram approval, then re-inspects after execution."}},{"@type":"Question","name":"How much does Night Watchman cost?","acceptedAnswer":{"@type":"Answer","text":"Night Watchman is free for up to 5 jobs. The early-bird license is $39 one-time for unlimited jobs through v1.x."}}]}</script>
   <style>
     :root {
       --bg: #0a0a0b;
@@ -317,14 +323,26 @@ cd ~/night-watchman
       </div>
     </section>
 
-    <section class="section" aria-labelledby="learn-title">
+    <section class="section" id="faq" aria-labelledby="faq-title">
+      <div class="wrap">
+        <div class="section-head"><p class="kicker">FAQ</p><h2 id="faq-title">Short answers before you install.</h2></div>
+        <div class="learn-grid">
+          <article class="card"><h3>What does Night Watchman monitor?</h3><p class="muted">Night Watchman monitors file-artifact cron jobs: scripts that produce CSVs, JSON, reports, dumps, logs, exports, or similar files.</p></article>
+          <article class="card"><h3>Does Night Watchman trust exit code 0?</h3><p class="muted">No. Exit code 0 is one weak process signal. Night Watchman checks the output artifact for freshness, size, rows, schema, and history.</p></article>
+          <article class="card"><h3>Does Night Watchman automatically fix jobs?</h3><p class="muted">No. It sends evidence and bounded actions to a human operator for Telegram approval, then re-inspects after execution.</p></article>
+          <article class="card"><h3>How much does Night Watchman cost?</h3><p class="muted">Night Watchman is free for up to 5 jobs. The early-bird license is $39 one-time for unlimited jobs through v1.x.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="learn" aria-labelledby="learn-title">
       <div class="wrap">
         <div class="section-head"><p class="kicker">Learn</p><h2 id="learn-title">Docs below the landing page.</h2><p class="muted">Definitions, comparison pages, and FAQ for search and answer engines.</p></div>
         <div class="learn-grid">
-          <a class="card" href="what-is-a-silent-cron-failure.html"><h3>What is a silent cron failure?</h3><p class="muted">The core failure mode: successful process, broken artifact.</p></a>
-          <a class="card" href="exit-code-0-is-not-a-health-check.html"><h3>Exit code 0 is not a health check</h3><p class="muted">Why process success is not output correctness.</p></a>
-          <a class="card" href="monitor-ai-generated-cron-jobs.html"><h3>Monitor AI-generated cron jobs</h3><p class="muted">A pattern for AI-written scripts that run unattended.</p></a>
-          <a class="card" href="night-watchman-vs-cronitor.html"><h3>Compare monitoring layers</h3><p class="muted">Cronitor, Healthchecks.io, and artifact validation.</p></a>
+          <a class="card" href="/what-is-a-silent-cron-failure.html"><h3>What is a silent cron failure?</h3><p class="muted">The core failure mode: successful process, broken artifact.</p></a>
+          <a class="card" href="/exit-code-0-is-not-a-health-check.html"><h3>Exit code 0 is not a health check</h3><p class="muted">Why process success is not output correctness.</p></a>
+          <a class="card" href="/monitor-ai-generated-cron-jobs.html"><h3>Monitor AI-generated cron jobs</h3><p class="muted">A pattern for AI-written scripts that run unattended.</p></a>
+          <a class="card" href="/night-watchman-vs-cronitor.html"><h3>Compare monitoring layers</h3><p class="muted">Cronitor, Healthchecks.io, and artifact validation.</p></a>
         </div>
       </div>
     </section>

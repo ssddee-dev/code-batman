@@ -1,6 +1,11 @@
 ---
-title: "How to Monitor AI-Generated Cron Jobs"
-description: "A practical monitoring pattern for AI-generated scheduled scripts using deterministic artifact checks and evidence dossiers."
+layout: "default"
+title: "Monitor AI-Generated Cron Jobs"
+description: "AI-generated cron jobs need output validation, schema checks, history comparison, and evidence dossiers."
+canonical_path: "/monitor-ai-generated-cron-jobs.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
+schema_type: "Article"
 ---
 
 # How to Monitor AI-Generated Cron Jobs

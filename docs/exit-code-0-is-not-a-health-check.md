@@ -1,6 +1,10 @@
 ---
+layout: "default"
 title: "Exit Code 0 Is Not a Health Check"
-description: "Why process success is not enough for cron job monitoring and how to validate scheduled job outputs."
+description: "Exit code 0 only proves the process ended successfully; real cron monitoring checks the output artifact."
+canonical_path: "/exit-code-0-is-not-a-health-check.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
 ---
 
 # Exit Code 0 Is Not a Health Check

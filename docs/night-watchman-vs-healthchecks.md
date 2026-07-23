@@ -1,6 +1,11 @@
 ---
+layout: "default"
 title: "Night Watchman vs Healthchecks.io"
-description: "Comparison of check-in monitoring and cron job output validation for bad artifacts after successful runs."
+description: "Healthchecks.io catches missing pings; Night Watchman catches bad, empty, stale, or malformed outputs."
+canonical_path: "/night-watchman-vs-healthchecks.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
+schema_type: "Article"
 ---
 
 # Night Watchman vs Healthchecks.io

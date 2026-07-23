@@ -1,4 +1,14 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ssddee-dev.github.io/code-batman/sitemap.xml
+# AI answer engines — explicitly welcome
+User-agent: GPTBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://nightwatchman.dev/sitemap.xml

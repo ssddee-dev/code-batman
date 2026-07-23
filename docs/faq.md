@@ -1,6 +1,13 @@
 ---
+layout: "default"
 title: "Night Watchman FAQ"
-description: "Frequently asked questions about Night Watchman, silent cron failures, output validation, and exit code monitoring."
+description: "Night Watchman answers common questions about artifact monitoring, AI investigation, setup, and pricing."
+canonical_path: "/faq.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
+schema_type: "FAQPage"
+faq_json_ld: >-
+  {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Does Night Watchman replace Cronitor or Healthchecks.io?", "acceptedAnswer": {"@type": "Answer", "text": "No. It complements them. Heartbeat tools ask “did the process report in?” Night Watchman asks “did the output artifact look valid?”"}}, {"@type": "Question", "name": "Can it monitor any cron job?", "acceptedAnswer": {"@type": "Answer", "text": "It is designed for file-artifact jobs: scripts that produce CSVs, JSON, reports, dumps, logs, exports, or similar files."}}, {"@type": "Question", "name": "Does it use AI to decide whether a job failed?", "acceptedAnswer": {"@type": "Answer", "text": "No. Detection is deterministic. The AI investigation layer summarizes evidence and suspected areas, and it must cite sources."}}, {"@type": "Question", "name": "Does it automatically fix problems?", "acceptedAnswer": {"@type": "Answer", "text": "No. Approve-to-execute actions are human-approved through Telegram buttons and re-inspected after execution."}}, {"@type": "Question", "name": "What is the free tier?", "acceptedAnswer": {"@type": "Answer", "text": "Night Watchman is free for up to 5 jobs. An early-bird license unlocks unlimited jobs for v1.x releases."}}]}
 ---
 
 # Night Watchman FAQ

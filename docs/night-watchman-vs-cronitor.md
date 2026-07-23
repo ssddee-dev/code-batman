@@ -1,6 +1,11 @@
 ---
+layout: "default"
 title: "Night Watchman vs Cronitor"
-description: "Comparison of heartbeat cron monitoring and artifact output validation for silent cron failures."
+description: "Cronitor tracks whether scheduled jobs run; Night Watchman checks whether file artifacts are correct."
+canonical_path: "/night-watchman-vs-cronitor.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
+schema_type: "Article"
 ---
 
 # Night Watchman vs Cronitor

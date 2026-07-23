@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://nightwatchman.dev/</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/what-is-a-silent-cron-failure.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/exit-code-0-is-not-a-health-check.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/monitor-ai-generated-cron-jobs.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/night-watchman-vs-cronitor.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/night-watchman-vs-healthchecks.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+  <url>
+    <loc>https://nightwatchman.dev/faq.html</loc>
+    <lastmod>2026-07-23</lastmod>
+  </url>
+</urlset>

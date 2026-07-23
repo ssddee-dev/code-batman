@@ -1,6 +1,10 @@
 ---
+layout: "default"
 title: "What Is a Silent Cron Failure?"
-description: "Definition and detection guide for cron jobs that exit successfully but produce bad, empty, stale, truncated, or malformed outputs."
+description: "A silent cron failure is a job that exits 0 while producing an empty, stale, or malformed artifact. How to detect it."
+canonical_path: "/what-is-a-silent-cron-failure.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
 ---
 
 # What Is a Silent Cron Failure?

@@ -1,6 +1,10 @@
 ---
-title: "Night Watchman SEO/AEO/GEO Content Hub"
-description: "Answer-engine-friendly guides and comparisons for Night Watchman and silent cron failure monitoring."
+layout: "default"
+title: "Night Watchman SEO/AEO/GEO Hub"
+description: "Night Watchman docs define silent cron failures, artifact validation, and AI cron monitoring for search and answer engines."
+canonical_path: "/README.html"
+datePublished: "2026-07-23"
+lastmod: "2026-07-23"
 ---
 
 # Night Watchman SEO/AEO/GEO Content Hub
@@ -15,12 +19,12 @@ Night Watchman monitors whether scheduled jobs actually produced valid outputs, 
 
 ## Core pages
 
-1. [What Is a Silent Cron Failure?](what-is-a-silent-cron-failure.md)
-2. [Exit Code 0 Is Not a Health Check](exit-code-0-is-not-a-health-check.md)
-3. [How to Monitor AI-Generated Cron Jobs](monitor-ai-generated-cron-jobs.md)
-4. [Night Watchman vs Cronitor](night-watchman-vs-cronitor.md)
-5. [Night Watchman vs Healthchecks.io](night-watchman-vs-healthchecks.md)
-6. [FAQ](faq.md)
+1. [What Is a Silent Cron Failure?](/what-is-a-silent-cron-failure.html)
+2. [Exit Code 0 Is Not a Health Check](/exit-code-0-is-not-a-health-check.html)
+3. [How to Monitor AI-Generated Cron Jobs](/monitor-ai-generated-cron-jobs.html)
+4. [Night Watchman vs Cronitor](/night-watchman-vs-cronitor.html)
+5. [Night Watchman vs Healthchecks.io](/night-watchman-vs-healthchecks.html)
+6. [FAQ](/faq.html)
 
 ## Product page
 

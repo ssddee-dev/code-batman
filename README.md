@@ -1,5 +1,7 @@
 # Night Watchman (`code-batman`)
 
+Website: https://nightwatchman.dev · Docs: https://nightwatchman.dev/#learn · Demo: https://youtu.be/ORbqkw7nBfU
+
 **An agent that checks whether your cron jobs actually *did their job* — and when they didn't, investigates and brings you evidence, not verdicts.**
 
 Submitted to the OpenAI Build Week Challenge (July 2026) and now being productized as v0.2. Codex builds the system; GPT-5.6 powers the investigation at runtime.
