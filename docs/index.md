@@ -1,6 +1,6 @@
 ---
 layout: home
-title: Night Watchman
+title: Cron Job Output Monitoring for Silent Failures
 ---
 
 **Cron job output monitoring for silent failures.**

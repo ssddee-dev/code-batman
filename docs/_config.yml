@@ -12,3 +12,8 @@ social:
   name: Night Watchman
   links:
     - https://github.com/ssddee-dev/code-batman
+header_pages:
+  - what-is-a-silent-cron-failure.md
+  - exit-code-0-is-not-a-health-check.md
+  - monitor-ai-generated-cron-jobs.md
+  - faq.md
