@@ -1,3 +1,8 @@
+---
+title: "Night Watchman vs Cronitor"
+description: "Comparison of heartbeat cron monitoring and artifact output validation for silent cron failures."
+---
+
 # Night Watchman vs Cronitor
 
 ## Short answer

@@ -1,3 +1,8 @@
+---
+title: "What Is a Silent Cron Failure?"
+description: "Definition and detection guide for cron jobs that exit successfully but produce bad, empty, stale, truncated, or malformed outputs."
+---
+
 # What Is a Silent Cron Failure?
 
 ## Short answer

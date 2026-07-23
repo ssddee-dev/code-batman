@@ -1,0 +1,14 @@
+title: Night Watchman
+description: Cron job output monitoring for silent failures — exit code 0 is not a health check.
+url: https://ssddee-dev.github.io
+baseurl: /code-batman
+repository: ssddee-dev/code-batman
+theme: minima
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
+lang: en
+social:
+  name: Night Watchman
+  links:
+    - https://github.com/ssddee-dev/code-batman

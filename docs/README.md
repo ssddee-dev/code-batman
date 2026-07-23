@@ -1,3 +1,8 @@
+---
+title: "Night Watchman SEO/AEO/GEO Content Hub"
+description: "Answer-engine-friendly guides and comparisons for Night Watchman and silent cron failure monitoring."
+---
+
 # Night Watchman SEO/AEO/GEO Content Hub
 
 This directory is a public, answer-engine-friendly content hub for Night Watchman.

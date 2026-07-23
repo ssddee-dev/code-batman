@@ -1,3 +1,8 @@
+---
+title: "Night Watchman FAQ"
+description: "Frequently asked questions about Night Watchman, silent cron failures, output validation, and exit code monitoring."
+---
+
 # Night Watchman FAQ
 
 ## What is Night Watchman?

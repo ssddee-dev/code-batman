@@ -1,3 +1,8 @@
+---
+title: "How to Monitor AI-Generated Cron Jobs"
+description: "A practical monitoring pattern for AI-generated scheduled scripts using deterministic artifact checks and evidence dossiers."
+---
+
 # How to Monitor AI-Generated Cron Jobs
 
 ## Short answer

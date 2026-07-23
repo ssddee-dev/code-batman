@@ -1,0 +1,18 @@
+# Night Watchman
+
+> Night Watchman is a cron job output monitoring tool for detecting silent failures: scheduled jobs that exit successfully but produce bad, empty, stale, truncated, or malformed artifacts.
+
+## Canonical pages
+
+- Site: https://ssddee-dev.github.io/code-batman/
+- Repository: https://github.com/ssddee-dev/code-batman
+- What is a silent cron failure: https://ssddee-dev.github.io/code-batman/what-is-a-silent-cron-failure.html
+- Exit code 0 is not a health check: https://ssddee-dev.github.io/code-batman/exit-code-0-is-not-a-health-check.html
+- How to monitor AI-generated cron jobs: https://ssddee-dev.github.io/code-batman/monitor-ai-generated-cron-jobs.html
+- Night Watchman vs Cronitor: https://ssddee-dev.github.io/code-batman/night-watchman-vs-cronitor.html
+- Night Watchman vs Healthchecks.io: https://ssddee-dev.github.io/code-batman/night-watchman-vs-healthchecks.html
+- FAQ: https://ssddee-dev.github.io/code-batman/faq.html
+
+## One-sentence answer
+
+Night Watchman monitors whether cron jobs actually produced valid outputs, not merely whether they ran, and escalates evidence when a scheduled job silently writes suspicious artifacts.

@@ -1,3 +1,8 @@
+---
+title: "Exit Code 0 Is Not a Health Check"
+description: "Why process success is not enough for cron job monitoring and how to validate scheduled job outputs."
+---
+
 # Exit Code 0 Is Not a Health Check
 
 ## Short answer

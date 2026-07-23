@@ -1,3 +1,8 @@
+---
+title: "Night Watchman vs Healthchecks.io"
+description: "Comparison of check-in monitoring and cron job output validation for bad artifacts after successful runs."
+---
+
 # Night Watchman vs Healthchecks.io
 
 ## Short answer
