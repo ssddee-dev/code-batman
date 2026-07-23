@@ -28,6 +28,13 @@ def response(*, valid: bool, status_code: int = 200) -> Mock:
     return value
 
 
+def polar_response(*, status: str = "granted", status_code: int = 200) -> Mock:
+    value = Mock()
+    value.status_code = status_code
+    value.json.return_value = {"id": "license-id", "status": status}
+    return value
+
+
 class LicenseValidationTests(unittest.TestCase):
     def setUp(self) -> None:
         license._EMITTED_LIMIT_WARNINGS.clear()
@@ -65,6 +72,11 @@ class LicenseValidationTests(unittest.TestCase):
         self.assertEqual(list(first), [f"job_{index}" for index in range(5)])
         self.assertEqual(list(second), [f"job_{index}" for index in range(5)])
         self.assertEqual(messages, [license.free_tier_message(7)])
+        self.assertIn(
+            f"Lemon Squeezy: {license.LEMON_CHECKOUT_URL}",
+            messages[0],
+        )
+        self.assertIn(f"Polar: {license.POLAR_CHECKOUT_URL}", messages[0])
 
     def test_registry_load_enforces_first_five_without_license(self) -> None:
         jobs = [
@@ -137,6 +149,72 @@ class LicenseValidationTests(unittest.TestCase):
             },
         )
         self.assertNotIn("Authorization", request.kwargs["headers"])
+
+    def test_polar_only_uses_public_json_validation_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            session = Mock()
+            session.post.return_value = polar_response()
+
+            valid = license.license_is_valid(
+                root=root,
+                environ={license.POLAR_LICENSE_ENV_NAME: "POLAR_valid-key"},
+                session=session,
+                now=NOW,
+            )
+
+        self.assertTrue(valid)
+        request = session.post.call_args
+        self.assertEqual(request.args[0], license.POLAR_LICENSE_API_URL)
+        self.assertEqual(
+            request.kwargs["json"],
+            {
+                "key": "POLAR_valid-key",
+                "organization_id": license.POLAR_ORGANIZATION_ID,
+            },
+        )
+        self.assertEqual(
+            request.kwargs["headers"],
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+        )
+        self.assertNotIn("Authorization", request.kwargs["headers"])
+
+    def test_neither_issuer_configured_uses_free_tier_without_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            session = Mock()
+
+            valid = license.license_is_valid(
+                root=Path(temp_dir),
+                environ={},
+                session=session,
+                now=NOW,
+            )
+
+        self.assertFalse(valid)
+        session.post.assert_not_called()
+
+    def test_lemon_takes_priority_when_both_issuers_are_configured(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            session = Mock()
+            session.post.return_value = response(valid=True)
+
+            valid = license.license_is_valid(
+                root=Path(temp_dir),
+                environ={
+                    license.LICENSE_ENV_NAME: "lemon-key",
+                    license.POLAR_LICENSE_ENV_NAME: "POLAR_key",
+                },
+                session=session,
+                now=NOW,
+            )
+
+        self.assertTrue(valid)
+        request = session.post.call_args
+        self.assertEqual(request.args[0], license.LICENSE_API_URL)
+        self.assertEqual(request.kwargs["data"], {"license_key": "lemon-key"})
 
     def test_invalid_key_is_cached_as_invalid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -211,6 +289,43 @@ class LicenseValidationTests(unittest.TestCase):
 
         self.assertTrue(valid)
         self.assertIn("license_api_unreachable using_cached_result", log_text)
+        self.assertIn("issuer=lemon_squeezy", log_text)
+
+    def test_polar_api_unreachable_uses_last_polar_cached_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            available_session = Mock()
+            available_session.post.return_value = polar_response()
+            license.license_is_valid(
+                root=root,
+                environ={license.POLAR_LICENSE_ENV_NAME: "POLAR_valid-key"},
+                session=available_session,
+                now=NOW,
+            )
+            unavailable_session = Mock()
+            unavailable_session.post.side_effect = requests.ConnectionError(
+                "offline"
+            )
+
+            valid = license.license_is_valid(
+                root=root,
+                environ={license.POLAR_LICENSE_ENV_NAME: "POLAR_valid-key"},
+                session=unavailable_session,
+                now=NOW + timedelta(hours=25),
+            )
+            cache = json.loads(
+                root.joinpath("data", "license_cache.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            log_text = root.joinpath("logs", "license.log").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertTrue(valid)
+        self.assertEqual(cache["issuer"], license.POLAR_ISSUER)
+        self.assertIn("license_api_unreachable using_cached_result", log_text)
+        self.assertIn("issuer=polar", log_text)
 
     def test_api_unreachable_without_cache_uses_free_tier_and_logs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
