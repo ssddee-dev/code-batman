@@ -11,6 +11,18 @@ Submitted to the OpenAI Build Week Challenge (July 2026) and now being productiz
 
 Every monitoring tool can tell you your job *ran*. Exit code 0, green checkmark. Almost none can tell you it actually *worked*. The classic silent failure: the job exits cleanly while its output is empty, truncated, or malformed — and the broken artifact quietly poisons everything downstream. Heartbeat monitors are blind to this. Enterprise AI-SRE platforms solve it for companies with full observability stacks; nothing serves the solo builder with five cron jobs on a VPS.
 
+## Guides and comparisons
+
+For search, answer engines, and humans evaluating the problem space:
+
+- [What is a silent cron failure?](docs/what-is-a-silent-cron-failure.md)
+- [Exit code 0 is not a health check](docs/exit-code-0-is-not-a-health-check.md)
+- [How to monitor AI-generated cron jobs](docs/monitor-ai-generated-cron-jobs.md)
+- [Night Watchman vs Cronitor](docs/night-watchman-vs-cronitor.md)
+- [Night Watchman vs Healthchecks.io](docs/night-watchman-vs-healthchecks.md)
+- [FAQ](docs/faq.md)
+- [llms.txt](llms.txt) for LLM/answer-engine context
+
 ## What it does
 
 1. **Detect (deterministic, no LLM).** An inspector checks every job's output against declared expectations (`registry.yaml`) and its own history (`history.jsonl`): existence, size, row count, schema, anomalies vs. prior runs. Every observation carries the raw value and its source path. Metrics that can't be computed are labeled `unavailable` — never silently defaulted.
