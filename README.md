@@ -85,14 +85,18 @@ The wizard:
 **Free:** Monitor up to 5 jobs with every Night Watchman feature enabled.
 
 **Early-bird license:** $39 one-time for all v1.x releases. It unlocks
-unlimited jobs, includes 3 machine activations, and never expires. Add the
-issued key as `NIGHT_WATCHMAN_LICENSE_KEY` in `.env`.
+unlimited jobs, includes 3 machine activations, and never expires. Buy through
+[Lemon Squeezy](https://ssddeelabs.lemonsqueezy.com/checkout/buy/03a57721-0a8f-46fb-a139-159dfc69599e)
+or [Polar](https://buy.polar.sh/polar_cl_tPvwnkU2WokWVdmIGHLBJu7AY8cVpqqiGYG591JGda5).
+Add the issued key to `.env` as `NIGHT_WATCHMAN_LICENSE_KEY` for Lemon
+Squeezy or `POLAR_LICENSE_KEY` for Polar. When both are present, Lemon Squeezy
+takes priority.
 
 Monitoring reliability always beats license enforcement. Night Watchman
-checks a license at most once per 24 hours and caches the result locally. If
-the license server is unavailable, it uses the last cached result; without a
-prior successful validation, it safely falls back to the five-job free tier.
-The first five jobs continue running in every case.
+checks the configured issuer at most once per 24 hours and caches the result
+locally. If that issuer is unavailable, it uses the last cached result;
+without a prior successful validation, it safely falls back to the five-job
+free tier. The first five jobs continue running in every case.
 
 ## Run the included demo
 
