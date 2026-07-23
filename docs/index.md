@@ -3,8 +3,6 @@ layout: home
 title: Night Watchman
 ---
 
-# Night Watchman
-
 **Cron job output monitoring for silent failures.**
 
 Night Watchman checks whether scheduled jobs actually produced valid outputs, not just whether they exited successfully.
